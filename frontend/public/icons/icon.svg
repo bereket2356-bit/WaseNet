@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="32" fill="#1E2B30"/>
+  <!-- Official registry emblem inner border -->
+  <rect x="36" y="36" width="440" height="440" rx="20" fill="none" stroke="#DDE4DF" stroke-width="4" stroke-opacity="0.3"/>
+  <!-- Archival parchment sheet -->
+  <rect x="96" y="96" width="320" height="320" rx="8" fill="#F7F8F6"/>
+  <!-- Document header rule -->
+  <line x1="136" y1="156" x2="376" y2="156" stroke="#1E2B30" stroke-width="4"/>
+  <!-- Document text rules -->
+  <line x1="136" y1="196" x2="320" y2="196" stroke="rgba(30,43,48,0.25)" stroke-width="4"/>
+  <line x1="136" y1="226" x2="350" y2="226" stroke="rgba(30,43,48,0.25)" stroke-width="4"/>
+  <line x1="136" y1="256" x2="280" y2="256" stroke="rgba(30,43,48,0.25)" stroke-width="4"/>
+  <!-- Digital seal stamp (VALID green) -->
+  <circle cx="340" cy="320" r="54" fill="#2D6A4F"/>
+  <circle cx="340" cy="320" r="46" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-dasharray="4 3"/>
+  <!-- Verification checkmark -->
+  <path d="M322 320l12 12 24-24" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
