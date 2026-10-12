@@ -1,0 +1,21 @@
+{
+  "kid": "wase-aa-2026-01",
+  "description": "Addis Ababa Public Registry Authority ES256 Key 2026",
+  "createdDate": "2026-01-01",
+  "status": "Active",
+  "jwkPublic": {
+    "kty": "EC",
+    "x": "rfI8jzDLMpUTrrdhMqw9Bu9gdwCnjplMR5lOfLkRor8",
+    "y": "xaw6hx5wBhbqbLS4Vx_HJwC8WNsz-IZyX0PMsoy5A8g",
+    "crv": "P-256"
+  },
+  "jwkPrivate": {
+    "kty": "EC",
+    "x": "rfI8jzDLMpUTrrdhMqw9Bu9gdwCnjplMR5lOfLkRor8",
+    "y": "xaw6hx5wBhbqbLS4Vx_HJwC8WNsz-IZyX0PMsoy5A8g",
+    "crv": "P-256",
+    "d": "lqpBhIDXwZOTA2MXyL9NRCtPcSbPSa93MU15GS_uNf8"
+  },
+  "pemPrivate": "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQglqpBhIDXwZOTA2MX\nyL9NRCtPcSbPSa93MU15GS/uNf+hRANCAASt8jyPMMsylROut2EyrD0G72B3AKeO\nmUxHmU58uRGiv8WsOocecAYW6my0uFcfxycAvFjbM/iGcl9DzLKMuQPI\n-----END PRIVATE KEY-----\n",
+  "pemPublic": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAErfI8jzDLMpUTrrdhMqw9Bu9gdwCn\njplMR5lOfLkRor/FrDqHHnAGFupstLhXH8cnALxY2zP4hnJfQ8yyjLkDyA==\n-----END PUBLIC KEY-----\n"
+}
