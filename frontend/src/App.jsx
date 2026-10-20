@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { I18nProvider } from './i18n.jsx';
 import Header from './components/Header.jsx';
 import Footer from './components/Footer.jsx';
+import BottomNav from './components/BottomNav.jsx';
+import MobileDrawer from './components/MobileDrawer.jsx';
 
 import LandingPage from './pages/LandingPage.jsx';
 import VerifyPage from './pages/VerifyPage.jsx';
@@ -109,15 +111,36 @@ function MainApp() {
       break;
   }
 
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-      <Header currentRoute={route} navigate={navigate} />
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', minHeight: '100dvh' }}>
+      <Header
+        currentRoute={route}
+        navigate={navigate}
+        onOpenMenu={() => setIsMobileMenuOpen(true)}
+      />
 
       <main className="main-content" id="main-content">
         <PageComponent routeParams={params} navigate={navigate} />
       </main>
 
       <Footer navigate={navigate} />
+
+      {/* Mobile-first Bottom Navigation Bar */}
+      <BottomNav
+        currentRoute={route}
+        navigate={navigate}
+        onOpenMenu={() => setIsMobileMenuOpen(true)}
+      />
+
+      {/* Accessible Mobile Slide-over Drawer */}
+      <MobileDrawer
+        isOpen={isMobileMenuOpen}
+        onClose={() => setIsMobileMenuOpen(false)}
+        currentRoute={route}
+        navigate={navigate}
+      />
     </div>
   );
 }

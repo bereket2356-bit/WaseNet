@@ -4,7 +4,7 @@ import { getCurrentUser, logout } from '../auth.js';
 import { getSyncStatus } from '../sync.js';
 import { seedInitialRegistryData } from '../storage.js';
 
-export default function Header({ currentRoute, navigate }) {
+export default function Header({ currentRoute, navigate, onOpenMenu }) {
   const { t, lang, toggleLang } = useI18n();
   const [user, setUser] = useState(getCurrentUser());
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -72,7 +72,22 @@ export default function Header({ currentRoute, navigate }) {
       {/* Sync Status Bar */}
       <div className="sync-bar" aria-label="System status">
         <div className="wrap sync-bar-inner">
-          <div className="sync-items">
+          {/* Mobile concise sync item */}
+          <div className="sync-items-mobile">
+            <button
+              onClick={() => navigate('sync')}
+              className="sync-link"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', font: 'inherit', padding: 0, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              aria-label={`System status: ${isOnline ? 'Online' : 'Offline'}. Tap to view registry sync details.`}
+            >
+              <span className={`status-dot ${isOnline ? '' : 'offline'}`}></span>
+              <span>{isOnline ? t('sync.online') : t('sync.offline')}</span>
+              <span className="muted-text" style={{ fontSize: '11px', textDecoration: 'none' }}>• {t('sync.action')}</span>
+            </button>
+          </div>
+
+          {/* Desktop full sync items */}
+          <div className="sync-items-desktop">
             <span className="sync-item">
               <span className={`status-dot ${isOnline ? '' : 'offline'}`}></span>
               <span>{isOnline ? t('sync.online') : t('sync.offline')}</span>
@@ -87,8 +102,6 @@ export default function Header({ currentRoute, navigate }) {
             <span className="sync-item">
               <span>{t('sync.key_version', { v: syncStatus.keyVersion })}</span>
             </span>
-          </div>
-          <div>
             <button
               onClick={() => navigate('sync')}
               className="sync-link"
@@ -100,7 +113,7 @@ export default function Header({ currentRoute, navigate }) {
         </div>
       </div>
 
-      {/* Main Header matching reference */}
+      {/* Main Header */}
       <header role="banner">
         <div className="wrap">
           <button
@@ -112,7 +125,8 @@ export default function Header({ currentRoute, navigate }) {
             {t('brand.name')}
           </button>
 
-          <nav aria-label="Main">
+          {/* Desktop Navigation (>= 768px) */}
+          <nav className="header-desktop-nav" aria-label="Main Desktop">
             <button
               onClick={() => navigate('verify')}
               className={`link ${currentRoute === 'verify' ? 'active' : ''}`}
@@ -124,7 +138,7 @@ export default function Header({ currentRoute, navigate }) {
               <>
                 <button
                   onClick={() => navigate('issue')}
-                  className={`link ${currentRoute === 'issue' ? 'active' : ''}`}
+                  className={`link ${currentRoute === 'issue' || currentRoute === 'issue-done' ? 'active' : ''}`}
                 >
                   {t('nav.issue')}
                 </button>
@@ -207,7 +221,7 @@ export default function Header({ currentRoute, navigate }) {
               className="link lang-toggle-btn"
               onClick={toggleLang}
               aria-label="Switch language"
-              style={{ marginLeft: '4px' }}
+              style={{ marginLeft: '6px' }}
             >
               {lang === 'en' ? 'አማርኛ' : 'English'}
             </button>
@@ -216,11 +230,37 @@ export default function Header({ currentRoute, navigate }) {
             <button
               onClick={() => navigate('verify')}
               className="btn"
-              style={{ marginLeft: '8px', minHeight: '44px', padding: '0 18px', fontSize: '15px' }}
+              style={{ marginLeft: '10px', minHeight: '44px', padding: '0 18px', fontSize: '15px' }}
             >
               {t('nav.check_doc') || 'Check a document'}
             </button>
           </nav>
+
+          {/* Mobile Controls (< 768px) */}
+          <div className="header-mobile-controls" aria-label="Mobile Controls">
+            <button
+              id="lang-toggle-btn-mobile"
+              className="lang-toggle-btn"
+              onClick={toggleLang}
+              aria-label="Switch language"
+            >
+              {lang === 'en' ? 'አማርኛ' : 'EN'}
+            </button>
+
+            <button
+              onClick={onOpenMenu}
+              className="btn btn-secondary"
+              style={{ minHeight: '44px', minWidth: '44px', padding: '0 10px', borderRadius: '8px' }}
+              aria-label="Open navigation menu"
+              aria-haspopup="dialog"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" width="22" height="22">
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+              </svg>
+            </button>
+          </div>
         </div>
       </header>
     </>
