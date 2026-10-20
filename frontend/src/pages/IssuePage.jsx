@@ -197,7 +197,7 @@ export default function IssuePage({ navigate }) {
                 type="button"
                 onClick={handleRegenerateUuid}
                 className="btn btn-secondary"
-                style={{ minHeight: '44px', whiteSpace: 'nowrap' }}
+                style={{ minHeight: '44px' }}
               >
                 {t('issue.btn_regenerate')}
               </button>

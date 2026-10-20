@@ -128,6 +128,36 @@
   --tap-secondary: 44px;
 }
 
+
+/* Amharic Layout & Overflow Adjustments (NFR-U2) */
+html[lang="am"] .banner-title {
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+html[lang="am"] .banner-message {
+  line-height: 1.6;
+}
+
+html[lang="am"] .form-label {
+  line-height: 1.5;
+  margin-bottom: 6px;
+}
+
+html[lang="am"] .detail-row {
+  line-height: 1.5;
+}
+
+html[lang="am"] .bottom-nav-label {
+  max-width: 80px;
+  line-height: 1.25;
+}
+
+html[lang="am"] .btn {
+  line-height: 1.4;
+  padding: 8px 18px;
+}
+
 /* Fluid Media & Unbounded Content Protection */
 img, svg, canvas, video {
   max-width: 100%;
