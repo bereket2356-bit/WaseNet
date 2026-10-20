@@ -165,22 +165,26 @@ export default function VerifyPage({ navigate }) {
 
       {/* Active Camera Viewfinder Overlay */}
       {isScanning && (
-        <div className="panel panel-alt" role="region" aria-label="Camera viewfinder">
-          <div className="scanner-container">
-            <video ref={videoRef} className="scanner-video" playsInline></video>
-            <div className="scanner-overlay">
-              <div className="scanner-instruction">{t('verify.camera_instruction')}</div>
-              <div className="scanner-guide-box"></div>
+        <div className="panel panel-alt" role="region" aria-label="Camera viewfinder" style={{ padding: '16px' }}>
+          <div className="scanner-viewport-active">
+            <div className="scanner-container">
+              <video ref={videoRef} className="scanner-video" playsInline></video>
+              <div className="scanner-overlay">
+                <div className="scanner-instruction">{t('verify.camera_instruction')}</div>
+                <div className="scanner-guide-box"></div>
+              </div>
+            </div>
+
+            <div className="scanner-controls" style={{ width: '100%', maxWidth: '440px' }}>
+              <button
+                onClick={stopCamera}
+                className="btn btn-secondary btn-full"
+                style={{ minHeight: '48px' }}
+              >
+                {t('verify.btn_cancel')}
+              </button>
             </div>
           </div>
-
-          <button
-            onClick={stopCamera}
-            className="btn btn-secondary btn-full"
-            style={{ minHeight: '48px' }}
-          >
-            {t('verify.btn_cancel')}
-          </button>
         </div>
       )}
 
@@ -219,12 +223,14 @@ export default function VerifyPage({ navigate }) {
                 onChange={(e) => setDocIdInput(e.target.value)}
                 className="form-input"
                 placeholder={t('verify.id_placeholder')}
+                inputMode="text"
+                autoComplete="off"
                 required
               />
               <span className="form-hint">{t('verify.id_hint')}</span>
             </div>
 
-            <button type="submit" className="btn btn-secondary btn-full">
+            <button type="submit" className="btn btn-secondary btn-full" style={{ minHeight: '48px' }}>
               {t('verify.btn_check_id')}
             </button>
           </form>
@@ -242,7 +248,7 @@ export default function VerifyPage({ navigate }) {
               accept="image/*"
               onChange={handleFileUpload}
               className="form-input"
-              style={{ padding: '8px' }}
+              style={{ padding: '8px', minHeight: '44px' }}
             />
           </div>
 
@@ -252,12 +258,12 @@ export default function VerifyPage({ navigate }) {
               <p className="muted-text" style={{ fontSize: '0.88rem', marginBottom: 'var(--space-2)' }}>
                 {t('verify.or_samples')}
               </p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-2)' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
                 <button
                   type="button"
                   onClick={() => onScanned(sampleTokens.valid)}
                   className="btn btn-secondary"
-                  style={{ fontSize: '0.85rem' }}
+                  style={{ fontSize: '0.85rem', minHeight: '44px', padding: '6px 12px' }}
                 >
                   {t('verify.sample_valid')}
                 </button>
@@ -265,7 +271,7 @@ export default function VerifyPage({ navigate }) {
                   type="button"
                   onClick={() => onScanned(sampleTokens.tampered)}
                   className="btn btn-secondary"
-                  style={{ fontSize: '0.85rem' }}
+                  style={{ fontSize: '0.85rem', minHeight: '44px', padding: '6px 12px' }}
                 >
                   {t('verify.sample_tampered')}
                 </button>
@@ -273,7 +279,7 @@ export default function VerifyPage({ navigate }) {
                   type="button"
                   onClick={() => onScanned(sampleTokens.revoked)}
                   className="btn btn-secondary"
-                  style={{ fontSize: '0.85rem' }}
+                  style={{ fontSize: '0.85rem', minHeight: '44px', padding: '6px 12px' }}
                 >
                   {t('verify.sample_revoked')}
                 </button>
@@ -281,7 +287,7 @@ export default function VerifyPage({ navigate }) {
                   type="button"
                   onClick={() => onScanned(sampleTokens.expired)}
                   className="btn btn-secondary"
-                  style={{ fontSize: '0.85rem' }}
+                  style={{ fontSize: '0.85rem', minHeight: '44px', padding: '6px 12px' }}
                 >
                   {t('verify.sample_expired')}
                 </button>

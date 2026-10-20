@@ -1320,6 +1320,33 @@ footer .copy {
    Camera Scanner Viewfinder (Phone portrait & landscape)
    ========================================================================== */
 
+.scanner-viewport-active {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+@media (max-height: 520px) and (orientation: landscape) {
+  .scanner-viewport-active {
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+  }
+  .scanner-viewport-active .scanner-container {
+    max-width: 48vw;
+    max-height: 65vh;
+    margin-bottom: 0;
+  }
+  .scanner-viewport-active .scanner-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: auto;
+  }
+}
+
 .scanner-container {
   position: relative;
   width: 100%;
@@ -1341,10 +1368,10 @@ footer .copy {
 /* Landscape Phone Scanner Viewfinder */
 @media (max-height: 520px) and (orientation: landscape) {
   .scanner-container {
-    max-height: 55vh;
-    max-width: 320px;
+    max-height: 60vh;
+    max-width: 340px;
     aspect-ratio: 4 / 3;
-    margin-bottom: 8px;
+    margin-bottom: 0;
   }
 }
 
