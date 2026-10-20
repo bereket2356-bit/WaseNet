@@ -83,11 +83,13 @@ export default function IssueDonePage({ routeParams, navigate }) {
           style={{
             marginTop: 'var(--space-4)',
             padding: 'var(--space-3)',
-            borderRadius: 'var(--radius-panel)',
+            borderRadius: '12px',
             backgroundColor: 'var(--bg-panel-alt)',
             display: 'flex',
+            flexWrap: 'wrap',
             alignItems: 'center',
-            justifyContent: 'space-between'
+            justifyContent: 'space-between',
+            gap: '8px'
           }}
         >
           <span className="muted-text" style={{ fontSize: '0.9rem' }}>Registry synchronization:</span>

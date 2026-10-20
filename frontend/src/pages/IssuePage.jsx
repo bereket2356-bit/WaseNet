@@ -10,6 +10,8 @@ export default function IssuePage({ navigate }) {
   const [signing, setSigning] = useState(false);
   const [formError, setFormError] = useState(null);
 
+  const [fieldErrors, setFieldErrors] = useState({});
+
   const generateUuid = () => {
     return crypto.randomUUID ? crypto.randomUUID() : '550e8400-e29b-41d4-a716-' + Math.random().toString(36).substring(2, 14);
   };
@@ -65,6 +67,9 @@ export default function IssuePage({ navigate }) {
       } catch (e) {}
       return updated;
     });
+    if (fieldErrors[field]) {
+      setFieldErrors((prev) => ({ ...prev, [field]: null }));
+    }
   };
 
   const handleRegenerateUuid = () => {
@@ -74,19 +79,26 @@ export default function IssuePage({ navigate }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setFormError(null);
+    const errors = {};
 
     const { doc_id, type, holder_name, holder_id, issue_date, expiry_date, issuer_code } = formData;
 
-    if (!doc_id || !holder_name || !holder_id || !issue_date || !expiry_date || !issuer_code) {
-      setFormError('All fields are required. Please complete all fields before signing.');
+    if (!doc_id) errors.doc_id = 'Document ID is required.';
+    if (!holder_name.trim()) errors.holder_name = t('issue.val_name');
+    if (!holder_id.trim()) errors.holder_id = t('issue.val_id');
+    if (!issuer_code.trim()) errors.issuer_code = t('issue.val_issuer');
+    if (!issue_date) errors.issue_date = 'Issue date is required.';
+    if (!expiry_date) errors.expiry_date = 'Expiry date is required.';
+    else if (new Date(expiry_date) <= new Date(issue_date)) {
+      errors.expiry_date = t('issue.val_expiry');
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
       return;
     }
 
-    if (new Date(expiry_date) <= new Date(issue_date)) {
-      setFormError(t('issue.val_expiry'));
-      return;
-    }
-
+    setFieldErrors({});
     setSigning(true);
 
     const payload = {
@@ -185,11 +197,13 @@ export default function IssuePage({ navigate }) {
                 type="button"
                 onClick={handleRegenerateUuid}
                 className="btn btn-secondary"
+                style={{ minHeight: '44px', whiteSpace: 'nowrap' }}
               >
                 {t('issue.btn_regenerate')}
               </button>
             </div>
             <span className="form-hint">UUIDv4 generated automatically for unique global identification.</span>
+            {fieldErrors.doc_id && <span className="form-error" role="alert">{fieldErrors.doc_id}</span>}
           </div>
 
           {/* 2. Document Type */}
@@ -223,9 +237,11 @@ export default function IssuePage({ navigate }) {
               onChange={(e) => handleChange('holder_name', e.target.value)}
               className="form-input"
               placeholder="e.g. Abebe Bikila Wolde"
+              autoComplete="name"
               required
             />
             <span className="form-hint">{t('issue.val_name')}</span>
+            {fieldErrors.holder_name && <span className="form-error" role="alert">{fieldErrors.holder_name}</span>}
           </div>
 
           {/* 4. Holder National or Kebele ID */}
@@ -239,13 +255,15 @@ export default function IssuePage({ navigate }) {
               value={formData.holder_id}
               onChange={(e) => handleChange('holder_id', e.target.value)}
               className="form-input"
-              placeholder="e.g. ET-AA-99887766"
+              placeholder="e.g. 99887766"
+              inputMode="numeric"
               required
             />
             <span className="form-hint">{t('issue.val_id')}</span>
+            {fieldErrors.holder_id && <span className="form-error" role="alert">{fieldErrors.holder_id}</span>}
           </div>
 
-          {/* 5. Issue Date and Expiry Date (side by side on desktop) */}
+          {/* 5. Issue Date and Expiry Date (side by side on tablet/desktop) */}
           <div className="form-row-2">
             <div className="form-group">
               <label htmlFor="issue-date" className="form-label">
@@ -259,6 +277,7 @@ export default function IssuePage({ navigate }) {
                 className="form-input"
                 required
               />
+              {fieldErrors.issue_date && <span className="form-error" role="alert">{fieldErrors.issue_date}</span>}
             </div>
             <div className="form-group">
               <label htmlFor="expiry-date" className="form-label">
@@ -273,6 +292,7 @@ export default function IssuePage({ navigate }) {
                 required
               />
               <span className="form-hint">{t('issue.val_expiry')}</span>
+              {fieldErrors.expiry_date && <span className="form-error" role="alert">{fieldErrors.expiry_date}</span>}
             </div>
           </div>
 
@@ -290,24 +310,27 @@ export default function IssuePage({ navigate }) {
               required
             />
             <span className="form-hint">{t('issue.val_issuer')}</span>
+            {fieldErrors.issuer_code && <span className="form-error" role="alert">{fieldErrors.issuer_code}</span>}
           </div>
 
-          {/* Form Error Alert */}
+          {/* General Form Error Alert */}
           {formError && (
-            <div className="form-error" style={{ marginBottom: 'var(--space-4)' }}>
+            <div className="form-error" style={{ marginBottom: 'var(--space-4)' }} role="alert">
               {formError}
             </div>
           )}
 
-          {/* Primary Action Button */}
-          <button
-            type="submit"
-            disabled={signing}
-            className="btn btn-primary btn-full"
-            style={{ minHeight: '50px', fontSize: '1.05rem' }}
-          >
-            {signing ? 'Signing and canonicalizing…' : t('issue.btn_sign')}
-          </button>
+          {/* Sticky Submit Button on Mobile */}
+          <div className="form-actions-sticky">
+            <button
+              type="submit"
+              disabled={signing}
+              className="btn btn-primary btn-full"
+              style={{ minHeight: '50px', fontSize: '1.05rem' }}
+            >
+              {signing ? 'Signing and canonicalizing…' : t('issue.btn_sign')}
+            </button>
+          </div>
         </form>
       </div>
     </div>
