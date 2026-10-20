@@ -128,8 +128,13 @@ export default function AdminKeysPage({ navigate }) {
 
       {/* Add Public Key Modal */}
       {isModalOpen && (
-        <div className="dialog-backdrop" role="dialog" aria-modal="true">
-          <div className="dialog-panel">
+        <div
+          className="dialog-backdrop"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setIsModalOpen(false)}
+        >
+          <div className="dialog-panel" onClick={(e) => e.stopPropagation()}>
             <h2 style={{ marginBottom: 'var(--space-3)' }}>{t('keys.btn_add_key')}</h2>
             <form onSubmit={handleAddKey}>
               <div className="form-group">
@@ -177,10 +182,15 @@ export default function AdminKeysPage({ navigate }) {
                   type="button"
                   onClick={() => setIsModalOpen(false)}
                   className="btn btn-secondary"
+                  style={{ minHeight: '44px' }}
                 >
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary">
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ minHeight: '44px' }}
+                >
                   Save key
                 </button>
               </div>

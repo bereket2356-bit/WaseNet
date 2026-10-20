@@ -129,8 +129,13 @@ export default function AdminIssuersPage({ navigate }) {
 
       {/* Add Issuer Modal */}
       {isModalOpen && (
-        <div className="dialog-backdrop" role="dialog" aria-modal="true">
-          <div className="dialog-panel">
+        <div
+          className="dialog-backdrop"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setIsModalOpen(false)}
+        >
+          <div className="dialog-panel" onClick={(e) => e.stopPropagation()}>
             <h2 style={{ marginBottom: 'var(--space-3)' }}>{t('issuers.btn_add_issuer')}</h2>
             <form onSubmit={handleAddIssuer}>
               <div className="form-group">
@@ -164,10 +169,15 @@ export default function AdminIssuersPage({ navigate }) {
                   type="button"
                   onClick={() => setIsModalOpen(false)}
                   className="btn btn-secondary"
+                  style={{ minHeight: '44px' }}
                 >
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary">
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ minHeight: '44px' }}
+                >
                   Save office
                 </button>
               </div>

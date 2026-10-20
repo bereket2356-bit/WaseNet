@@ -61,7 +61,7 @@ export default function AdminRevokePage({ navigate }) {
   };
 
   return (
-    <div className="container-narrow">
+    <div className="container">
       <h1>{t('revoke.heading')}</h1>
       <p className="muted-text">{t('revoke.subheading')}</p>
 
@@ -90,37 +90,40 @@ export default function AdminRevokePage({ navigate }) {
 
       <div className="panel">
         <form onSubmit={handleOpenConfirm} noValidate>
-          <div className="form-group">
-            <label htmlFor="revoke-doc-id" className="form-label">
-              {t('revoke.doc_id_label')}
-            </label>
-            <input
-              type="text"
-              id="revoke-doc-id"
-              value={docId}
-              onChange={(e) => setDocId(e.target.value)}
-              className="form-input"
-              placeholder="e.g. 3fa85f64-5717-4562-b3fc-2c963f66afa6"
-              required
-            />
-          </div>
+          {/* Multi-column layout on tablet/desktop (md+), stacked on mobile */}
+          <div className="form-row-2">
+            <div className="form-group">
+              <label htmlFor="revoke-doc-id" className="form-label">
+                {t('revoke.doc_id_label')}
+              </label>
+              <input
+                type="text"
+                id="revoke-doc-id"
+                value={docId}
+                onChange={(e) => setDocId(e.target.value)}
+                className="form-input"
+                placeholder="e.g. 3fa85f64-5717-4562-b3fc-2c963f66afa6"
+                required
+              />
+            </div>
 
-          <div className="form-group">
-            <label htmlFor="revoke-reason" className="form-label">
-              {t('revoke.reason_label')}
-            </label>
-            <select
-              id="revoke-reason"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              className="form-select"
-              required
-            >
-              <option value="Issued in error">{t('revoke.reason_error')}</option>
-              <option value="Reported lost">{t('revoke.reason_lost')}</option>
-              <option value="Reported forged">{t('revoke.reason_forged')}</option>
-              <option value="Holder request">{t('revoke.reason_holder')}</option>
-            </select>
+            <div className="form-group">
+              <label htmlFor="revoke-reason" className="form-label">
+                {t('revoke.reason_label')}
+              </label>
+              <select
+                id="revoke-reason"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                className="form-select"
+                required
+              >
+                <option value="Issued in error">{t('revoke.reason_error')}</option>
+                <option value="Reported lost">{t('revoke.reason_lost')}</option>
+                <option value="Reported forged">{t('revoke.reason_forged')}</option>
+                <option value="Holder request">{t('revoke.reason_holder')}</option>
+              </select>
+            </div>
           </div>
 
           <button
@@ -129,7 +132,8 @@ export default function AdminRevokePage({ navigate }) {
             style={{
               minHeight: '48px',
               backgroundColor: 'var(--status-revoked)',
-              borderColor: 'var(--status-revoked)'
+              borderColor: 'var(--status-revoked)',
+              marginTop: 'var(--space-2)'
             }}
           >
             Revoke document…
@@ -139,8 +143,13 @@ export default function AdminRevokePage({ navigate }) {
 
       {/* Confirmation Step Dialog */}
       {isConfirmOpen && (
-        <div className="dialog-backdrop" role="dialog" aria-modal="true">
-          <div className="dialog-panel">
+        <div
+          className="dialog-backdrop"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setIsConfirmOpen(false)}
+        >
+          <div className="dialog-panel" onClick={(e) => e.stopPropagation()}>
             <h2 style={{ color: 'var(--status-revoked)', marginBottom: 'var(--space-2)' }}>
               {t('revoke.confirm_title')}
             </h2>
@@ -151,11 +160,11 @@ export default function AdminRevokePage({ navigate }) {
               style={{
                 backgroundColor: 'var(--bg-panel-alt)',
                 padding: 'var(--space-3)',
-                borderRadius: 'var(--radius-panel)',
+                borderRadius: '12px',
                 marginBottom: 'var(--space-4)'
               }}
             >
-              <div style={{ fontSize: '0.85rem', color: 'var(--color-muted)' }}>Target document:</div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--muted)' }}>Target document:</div>
               <strong style={{ wordBreak: 'break-all' }}>{docId}</strong>
             </div>
 
@@ -164,6 +173,7 @@ export default function AdminRevokePage({ navigate }) {
                 type="button"
                 onClick={() => setIsConfirmOpen(false)}
                 className="btn btn-secondary"
+                style={{ minHeight: '44px' }}
               >
                 {t('revoke.btn_cancel')}
               </button>
@@ -174,7 +184,8 @@ export default function AdminRevokePage({ navigate }) {
                 className="btn btn-primary"
                 style={{
                   backgroundColor: 'var(--status-revoked)',
-                  borderColor: 'var(--status-revoked)'
+                  borderColor: 'var(--status-revoked)',
+                  minHeight: '44px'
                 }}
               >
                 {revoking ? 'Revoking…' : t('revoke.btn_confirm')}
