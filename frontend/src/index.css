@@ -1,4 +1,63 @@
 /* ==========================================================================
+   Amharic (Ge'ez Script) Local Font Face Declarations
+   Font: Qal by Abel Yeshewalem (Font.et)
+   ========================================================================== */
+
+@font-face {
+  font-family: "WaseNet Amharic";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/assets/fonts/Qal_Regular_255af25e53.ttf") format("truetype");
+  unicode-range: U+1200-137F, U+1380-139F, U+2D80-2DDF, U+AB00-AB2F;
+}
+
+@font-face {
+  font-family: "WaseNet Amharic";
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/assets/fonts/Qal_Regular_Italic_bca97a5f22.ttf") format("truetype");
+  unicode-range: U+1200-137F, U+1380-139F, U+2D80-2DDF, U+AB00-AB2F;
+}
+
+@font-face {
+  font-family: "WaseNet Amharic";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/assets/fonts/Qal_Semi_Bold_3e5ae622d0.ttf") format("truetype");
+  unicode-range: U+1200-137F, U+1380-139F, U+2D80-2DDF, U+AB00-AB2F;
+}
+
+@font-face {
+  font-family: "WaseNet Amharic";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/assets/fonts/Qal_Semi_Bold_3e5ae622d0.ttf") format("truetype");
+  unicode-range: U+1200-137F, U+1380-139F, U+2D80-2DDF, U+AB00-AB2F;
+}
+
+@font-face {
+  font-family: "WaseNet Amharic";
+  font-style: italic;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/assets/fonts/Qal_Semi_Bold_Italic_dc05022644.ttf") format("truetype");
+  unicode-range: U+1200-137F, U+1380-139F, U+2D80-2DDF, U+AB00-AB2F;
+}
+
+@font-face {
+  font-family: "WaseNet Amharic";
+  font-style: italic;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/assets/fonts/Qal_Semi_Bold_Italic_dc05022644.ttf") format("truetype");
+  unicode-range: U+1200-137F, U+1380-139F, U+2D80-2DDF, U+AB00-AB2F;
+}
+
+/* ==========================================================================
    WaseNet Official Design System
    Document Authentication for Public Offices
    ========================================================================== */
