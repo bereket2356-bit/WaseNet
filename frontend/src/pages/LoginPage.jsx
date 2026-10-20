@@ -57,6 +57,9 @@ export default function LoginPage({ routeParams, navigate }) {
               onChange={(e) => setUsername(e.target.value)}
               className="form-input"
               autoComplete="username"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck="false"
               required
             />
           </div>

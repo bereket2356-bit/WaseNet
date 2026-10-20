@@ -797,11 +797,19 @@ nav .link.active {
 
 footer {
   border-top: 1px solid var(--line);
-  padding: 40px 0 48px;
+  padding: 36px 0 calc(48px + 64px + var(--sab));
   font-size: 15px;
   color: var(--muted);
   margin-top: auto;
   background: var(--bg);
+  padding-left: var(--sal);
+  padding-right: var(--sar);
+}
+
+@media (min-width: 768px) {
+  footer {
+    padding: 40px 0 calc(48px + var(--sab));
+  }
 }
 
 footer .wrap {
