@@ -145,16 +145,16 @@ export default function ResultPage({ routeParams, navigate }) {
 
   return (
     <div className="container-narrow">
-      <h1>{t('result.heading')}</h1>
+      <h1 style={{ marginBottom: 'var(--space-2)' }}>{t('result.heading')}</h1>
 
-      {/* Full-width Banner (role="status") */}
+      {/* Full-width Banner (role="status") - Guaranteed visible without scrolling on phones */}
       <section
         className={`result-banner status-${status.toLowerCase()}`}
         role="status"
         aria-live="polite"
       >
         <div className="banner-header">
-          <div className="banner-icon">
+          <div className="banner-icon" aria-hidden="true">
             {ICONS[status] || ICONS.UNREADABLE}
           </div>
           <div>
