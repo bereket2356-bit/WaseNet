@@ -55,14 +55,18 @@ export default function AuditPage({ navigate }) {
             <tbody>
               {records.map((r) => (
                 <tr key={r.id}>
-                  <td><code>{r.doc_id || 'unknown'}</code></td>
-                  <td>{r.timestamp ? new Date(r.timestamp).toLocaleString() : '—'}</td>
-                  <td>
+                  <td data-label={t('audit.col_doc_id')} style={{ wordBreak: 'break-all' }}>
+                    <code>{r.doc_id || 'unknown'}</code>
+                  </td>
+                  <td data-label={t('audit.col_timestamp')}>
+                    {r.timestamp ? new Date(r.timestamp).toLocaleString() : '—'}
+                  </td>
+                  <td data-label={t('audit.col_result')}>
                     <span className={`tag-status ${(r.result || '').toLowerCase()}`}>
                       {r.result || 'Unknown'}
                     </span>
                   </td>
-                  <td className="muted-text" style={{ fontSize: '0.82rem' }}>
+                  <td data-label={t('audit.col_device_id')} className="muted-text" style={{ fontSize: '0.82rem', wordBreak: 'break-all' }}>
                     {r.deviceId || '—'}
                   </td>
                 </tr>

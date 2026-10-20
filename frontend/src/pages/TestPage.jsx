@@ -236,13 +236,13 @@ export default function TestPage() {
           <tbody>
             {testResults.map((t, idx) => (
               <tr key={idx}>
-                <td style={{ width: '100px' }}>
+                <td data-label="Status">
                   <span className={`tag-status ${t.passed ? 'valid' : 'tampered'}`}>
                     {t.passed ? 'PASS' : 'FAIL'}
                   </span>
                 </td>
-                <td><strong>{t.name}</strong></td>
-                <td className="muted-text" style={{ fontSize: '0.85rem' }}>{t.details}</td>
+                <td data-label="Test Specification"><strong>{t.name}</strong></td>
+                <td data-label="Details" className="muted-text" style={{ fontSize: '0.85rem' }}>{t.details}</td>
               </tr>
             ))}
           </tbody>

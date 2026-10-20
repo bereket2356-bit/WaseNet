@@ -107,10 +107,10 @@ export default function QueuePage({ navigate }) {
             <tbody>
               {items.map((doc) => (
                 <tr key={doc.doc_id}>
-                  <td><strong>{doc.type || 'Document'}</strong></td>
-                  <td>{doc.holder_name || '—'}</td>
-                  <td>{doc.createdAt ? new Date(doc.createdAt).toLocaleString() : '—'}</td>
-                  <td>
+                  <td data-label={t('queue.col_type')}><strong>{doc.type || 'Document'}</strong></td>
+                  <td data-label={t('queue.col_holder')}>{doc.holder_name || '—'}</td>
+                  <td data-label={t('queue.col_time')}>{doc.createdAt ? new Date(doc.createdAt).toLocaleString() : '—'}</td>
+                  <td data-label={t('queue.col_status')}>
                     <span className="tag-status expired">
                       {t('queue.status_waiting')}
                     </span>

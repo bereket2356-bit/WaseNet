@@ -105,18 +105,18 @@ export default function AdminIssuersPage({ navigate }) {
           <tbody>
             {issuers.map((iss) => (
               <tr key={iss.id}>
-                <td><strong>{iss.name}</strong></td>
-                <td><code>{iss.code}</code></td>
-                <td>
+                <td data-label={t('issuers.col_name')}><strong>{iss.name}</strong></td>
+                <td data-label={t('issuers.col_code')}><code>{iss.code}</code></td>
+                <td data-label={t('issuers.col_status')}>
                   <span className={`tag-status ${iss.status === 'Active' ? 'valid' : 'expired'}`}>
                     {iss.status === 'Active' ? t('issuers.status_active') : t('issuers.status_disabled')}
                   </span>
                 </td>
-                <td>
+                <td data-label={t('issuers.col_actions')}>
                   <button
                     onClick={() => handleToggleStatus(iss.id)}
                     className="btn btn-secondary"
-                    style={{ padding: '2px 10px', fontSize: '0.82rem' }}
+                    style={{ minHeight: '44px', padding: '6px 14px', fontSize: '0.85rem' }}
                   >
                     {iss.status === 'Active' ? t('issuers.btn_disable') : t('issuers.btn_enable')}
                   </button>

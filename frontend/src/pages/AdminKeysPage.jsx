@@ -96,7 +96,7 @@ export default function AdminKeysPage({ navigate }) {
                 k.status === 'Active' ? 'valid' : k.status === 'Revoked' ? 'revoked' : 'expired';
               return (
                 <tr key={k.kid}>
-                  <td>
+                  <td data-label={t('keys.col_kid')}>
                     <strong>{k.kid}</strong>
                     {k.description && (
                       <div className="muted-text" style={{ fontSize: '0.82rem' }}>
@@ -104,17 +104,17 @@ export default function AdminKeysPage({ navigate }) {
                       </div>
                     )}
                   </td>
-                  <td>{k.createdDate || '—'}</td>
-                  <td>
+                  <td data-label={t('keys.col_created')}>{k.createdDate || '—'}</td>
+                  <td data-label={t('keys.col_status')}>
                     <span className={`tag-status ${statusClass}`}>
                       {k.status || 'Active'}
                     </span>
                   </td>
-                  <td>
+                  <td data-label={t('keys.col_actions')}>
                     <button
                       onClick={() => handleToggleStatus(k.kid)}
                       className="btn btn-secondary"
-                      style={{ padding: '2px 10px', fontSize: '0.82rem' }}
+                      style={{ minHeight: '44px', padding: '6px 14px', fontSize: '0.85rem' }}
                     >
                       {t('keys.btn_change_status')}
                     </button>
