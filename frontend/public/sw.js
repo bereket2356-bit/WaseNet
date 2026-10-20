@@ -4,7 +4,7 @@
  * Total offline storage is well under 25 MB.
  */
 
-const CACHE_NAME = 'wasenet-shell-v1';
+const CACHE_NAME = 'wasenet-shell-v2';
 
 const APP_SHELL_FILES = [
   './',
@@ -13,7 +13,11 @@ const APP_SHELL_FILES = [
   './lib/jsqr.js',
   './icons/icon.svg',
   './icons/icon-192.png',
-  './icons/icon-512.png'
+  './icons/icon-512.png',
+  './assets/fonts/Qal_Regular_255af25e53.ttf',
+  './assets/fonts/Qal_Regular_Italic_bca97a5f22.ttf',
+  './assets/fonts/Qal_Semi_Bold_3e5ae622d0.ttf',
+  './assets/fonts/Qal_Semi_Bold_Italic_dc05022644.ttf'
 ];
 
 self.addEventListener('install', (event) => {
