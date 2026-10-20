@@ -109,8 +109,9 @@
   --font-sans: "Atkinson Hyperlegible", "Noto Sans Ethiopic", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --font-heading: var(--font-serif);
   --font-body: var(--font-sans);
-  --font-heading-am: "Noto Serif Ethiopic", "Newsreader", Georgia, serif;
-  --font-body-am: "Noto Sans Ethiopic", "Atkinson Hyperlegible", system-ui, sans-serif;
+  --font-amharic: "WaseNet Amharic", "Noto Sans Ethiopic", system-ui, sans-serif;
+  --font-heading-am: var(--font-amharic);
+  --font-body-am: var(--font-amharic);
 
   /* Spacing */
   --space-1: 4px;
@@ -135,21 +136,69 @@ img, video {
   height: auto;
 }
 
-/* Lang-specific fonts and line heights */
+/* ==========================================================================
+   Amharic Document Language Typography (NFR-U2)
+   Stack: "WaseNet Amharic", "Noto Sans Ethiopic", system-ui, sans-serif
+   ========================================================================== */
+
 html[lang="am"] {
-  font-family: var(--font-body-am);
+  font-family: var(--font-amharic);
   line-height: 1.65;
 }
+
 html[lang="am"] body {
+  font-family: var(--font-amharic);
   line-height: 1.65;
 }
+
+/* Ensure all elements use the custom Amharic font when lang="am" */
 html[lang="am"] h1,
 html[lang="am"] h2,
 html[lang="am"] h3,
 html[lang="am"] h4,
-html[lang="am"] .serif {
-  font-family: var(--font-heading-am);
-  line-height: 1.35;
+html[lang="am"] h5,
+html[lang="am"] h6,
+html[lang="am"] .serif,
+html[lang="am"] .logo,
+html[lang="am"] .col h3,
+html[lang="am"] .banner-title,
+html[lang="am"] .banner-message,
+html[lang="am"] .result-banner,
+html[lang="am"] .status-badge,
+html[lang="am"] button,
+html[lang="am"] .btn,
+html[lang="am"] .btn-primary,
+html[lang="am"] .btn-secondary,
+html[lang="am"] .btn-outline,
+html[lang="am"] .lang-toggle-btn,
+html[lang="am"] .bottom-nav,
+html[lang="am"] .bottom-nav-item,
+html[lang="am"] .bottom-nav-label,
+html[lang="am"] .mobile-drawer,
+html[lang="am"] input,
+html[lang="am"] select,
+html[lang="am"] textarea,
+html[lang="am"] label,
+html[lang="am"] .field-error,
+html[lang="am"] .toast,
+html[lang="am"] .data-table,
+html[lang="am"] .data-table th,
+html[lang="am"] .data-table td,
+html[lang="am"] .modal-title,
+html[lang="am"] .pill {
+  font-family: var(--font-amharic) !important;
+}
+
+html[lang="am"] h1,
+html[lang="am"] h2,
+html[lang="am"] h3,
+html[lang="am"] h4 {
+  line-height: 1.4;
+}
+
+html[lang="am"] input::placeholder,
+html[lang="am"] textarea::placeholder {
+  font-family: var(--font-amharic) !important;
 }
 
 * {
