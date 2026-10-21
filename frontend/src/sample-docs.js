@@ -80,6 +80,8 @@ export async function getSampleTokens(kid = 'wase-aa-2026-01') {
       ['sign', 'verify']
     );
 
+    const publicJwk = await crypto.subtle.exportKey('jwk', keyPair.publicKey);
+
     await keyStore.putKey({
       kid: kid,
       createdDate: '2026-01-01',
