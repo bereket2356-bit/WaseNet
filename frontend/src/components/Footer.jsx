@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useI18n } from '../i18n.jsx';
 import { getSyncStatus } from '../sync.js';
 
-export default function Footer() {
-  const { t, lang } = useI18n();
+export default function Footer({ navigate }) {
   const checkOnline = () => {
     return !window.__wasenet_simulated_offline && (typeof navigator !== 'undefined' ? navigator.onLine : true);
   };
@@ -56,9 +54,37 @@ export default function Footer() {
       <div className="wrap" id="foot">
         <p>
           <span className={`dot ${isOnline ? '' : 'off'}`}></span>
-          {isOnline ? t('status_online') : t('status_offline')} · {t('last_sync')}: {lastSyncText} · {t('rev_list')} v{syncStatus.drlVersion}
+          {isOnline ? 'Online' : 'Offline'} · Last sync: {lastSyncText} · Revocation list v{syncStatus.drlVersion}
         </p>
-        <p>© 2026 WaseNet</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+          <a
+            href="#/report"
+            className="text-btn"
+            style={{ fontSize: '14px', padding: '0 4px', minHeight: '36px' }}
+            onClick={(e) => {
+              if (navigate) {
+                e.preventDefault();
+                navigate('report');
+              }
+            }}
+          >
+            Report a fraud
+          </a>
+          <a
+            href="#/contact"
+            className="text-btn"
+            style={{ fontSize: '14px', padding: '0 4px', minHeight: '36px' }}
+            onClick={(e) => {
+              if (navigate) {
+                e.preventDefault();
+                navigate('contact');
+              }
+            }}
+          >
+            Contact us
+          </a>
+          <span>© 2026 WaseNet</span>
+        </div>
       </div>
     </footer>
   );
