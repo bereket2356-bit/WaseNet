@@ -1,19 +1,18 @@
 import React from 'react';
-import { useI18n } from '../i18n.jsx';
 
 export default function LandingPage({ navigate }) {
-  const { t } = useI18n();
-
   return (
     <div>
-      <section className="hero">
-        <span className="badge">
-          <b>{t('badge_new')}</b>
-          {t('badge_text')}
+      <header className="page-intro hero">
+        <span className="badge" style={{ marginBottom: '16px' }}>
+          <b>New</b>
+          Up to 30 days offline
         </span>
-        <h1>{t('hero_title')}</h1>
-        <p className="lead">{t('hero_sub')}</p>
-        <div className="row-btns">
+        <h1>Verify a document in one scan.</h1>
+        <p className="lead">
+          WaseNet proves land certificates, cooperative credentials, and local permits genuine, even when the network is down.
+        </p>
+        <div className="row-btns" style={{ justifyContent: 'center', marginTop: '24px' }}>
           <a
             className="btn"
             href="#/verify"
@@ -22,7 +21,7 @@ export default function LandingPage({ navigate }) {
               navigate('verify');
             }}
           >
-            {t('cta_scan')}
+            Scan a document
           </a>
           <a
             className="btn outline"
@@ -32,27 +31,27 @@ export default function LandingPage({ navigate }) {
               navigate('issue');
             }}
           >
-            {t('cta_offices')}
+            For issuing offices
           </a>
         </div>
-      </section>
+      </header>
 
       <section className="showcase" aria-label="Example result">
         <div className="stage">
           <article className="cert">
             <div>
-              <h3>{t('dt_land')}</h3>
+              <h3>Land certificate</h3>
               <dl className="rows">
                 <div>
-                  <dt>{t('f_holder')}</dt>
+                  <dt>Holder name</dt>
                   <dd>Abebe Bikila</dd>
                 </div>
                 <div>
-                  <dt>{t('f_issuer')}</dt>
+                  <dt>Issuer code</dt>
                   <dd>KEBELE-04-AA</dd>
                 </div>
                 <div>
-                  <dt>{t('f_expires')}</dt>
+                  <dt>Expires</dt>
                   <dd>1 Oct 2028</dd>
                 </div>
               </dl>
@@ -61,42 +60,66 @@ export default function LandingPage({ navigate }) {
               QR
             </div>
             <p className="cert-status">
-              {t('r_valid_t')} <span>{t('r_valid_x')}</span>
+              Valid <span>Authentic and current.</span>
             </p>
           </article>
         </div>
       </section>
 
       <section className="section stats" aria-label="Key figures">
-        {[1, 2, 3].map((i) => (
-          <div className="card stat" key={i}>
-            <strong>{t(`stat${i}_n`)}</strong>
-            <span>{t(`stat${i}_l`)}</span>
-          </div>
-        ))}
+        <div className="card stat">
+          <strong>30 days</strong>
+          <span>Works without a signal</span>
+        </div>
+        <div className="card stat">
+          <strong>&lt; 2 sec</strong>
+          <span>From scan to result</span>
+        </div>
+        <div className="card stat">
+          <strong>4 outcomes</strong>
+          <span>Valid, Tampered, Revoked, or Expired</span>
+        </div>
       </section>
 
       <section className="section feat" aria-label="Features">
-        {[1, 2, 3].map((i) => (
-          <article className="card" key={i}>
-            <h3>{t(`f${i}_t`)}</h3>
-            <p>{t(`f${i}_d`)}</p>
-          </article>
-        ))}
+        <article className="card">
+          <h3>For verifiers</h3>
+          <p>Scan the code, read the result. No account needed.</p>
+        </article>
+        <article className="card">
+          <h3>For issuing offices</h3>
+          <p>Fill one form, sign, and print the QR code. Offline work waits in a queue.</p>
+        </article>
+        <article className="card">
+          <h3>For administrators</h3>
+          <p>Manage keys, cancel documents, and keep an audit trail.</p>
+        </article>
       </section>
 
       <section className="section card close">
-        <h2>{t('close_title')}</h2>
-        <a
-          className="btn"
-          href="#/verify"
-          onClick={(e) => {
-            e.preventDefault();
-            navigate('verify');
-          }}
-        >
-          {t('close_btn')}
-        </a>
+        <h2>Make a document checkable in seconds.</h2>
+        <div className="row-btns" style={{ justifyContent: 'center' }}>
+          <a
+            className="btn"
+            href="#/verify"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate('verify');
+            }}
+          >
+            Start scanning
+          </a>
+          <a
+            className="btn outline"
+            href="#/contact"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate('contact');
+            }}
+          >
+            Contact us
+          </a>
+        </div>
       </section>
     </div>
   );
