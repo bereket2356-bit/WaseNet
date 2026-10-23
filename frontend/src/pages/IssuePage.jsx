@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useI18n } from '../i18n.jsx';
 import { getCurrentUser, login } from '../auth.js';
 import { getSigningProvider, IsolatedMockHardwareSigningProvider } from '../signing-provider.js';
-import { queueStore } from '../storage.js';
+import { queueStore, drlStore, metaStore } from '../storage.js';
+import { syncRegistry, getSyncStatus } from '../sync.js';
 import { QrCodeGenerator } from '../qr-generator.js';
 
 const newId = () => (crypto.randomUUID ? crypto.randomUUID()
@@ -11,8 +11,21 @@ const newId = () => (crypto.randomUUID ? crypto.randomUUID()
       return (c === 'x' ? r : (r & 3) | 8).toString(16);
     }));
 
+const REVOKE_REASONS = {
+  '1': 'Issued in error',
+  '2': 'Reported lost',
+  '3': 'Reported forged',
+  '4': 'Holder request'
+};
+
+const DOC_TYPES = {
+  dt_land: 'Land certificate',
+  dt_coop: 'Cooperative credential',
+  dt_birth: 'Birth record',
+  dt_permit: 'Local permit'
+};
+
 export default function IssuePage({ navigate }) {
-  const { t, lang } = useI18n();
   const [user, setUser] = useState(getCurrentUser());
   const [authMode, setAuthMode] = useState('choose'); // 'choose' | 'register' | 'signin'
   const [regError, setRegError] = useState('');
@@ -24,7 +37,20 @@ export default function IssuePage({ navigate }) {
   const checkOffline = () => {
     return Boolean(window.__wasenet_simulated_offline || !navigator.onLine);
   };
+  const [simulatedOffline, setSimulatedOffline] = useState(Boolean(window.__wasenet_simulated_offline));
   const [isOffline, setIsOffline] = useState(checkOffline);
+
+  // Queue & Sync state (moved from Admin)
+  const [queueItems, setQueueItems] = useState([]);
+  const [lastSyncText, setLastSyncText] = useState('10:14 AM');
+  const [revVersion, setRevVersion] = useState(42);
+  const [syncMsg, setSyncMsg] = useState('');
+
+  // Revoke state (moved from Admin)
+  const [revokeDocId, setRevokeDocId] = useState('');
+  const [revokeReason, setRevokeReason] = useState('1');
+  const [pendingRevoke, setPendingRevoke] = useState(null);
+  const [revokeSuccessMsg, setRevokeSuccessMsg] = useState('');
 
   const canvasRef = useRef(null);
 
@@ -60,6 +86,24 @@ export default function IssuePage({ navigate }) {
     issuer: user?.office || 'Addis Ababa Sub-city Office 04'
   });
 
+  const loadQueueAndSync = async () => {
+    try {
+      const q = await queueStore.getAllPending();
+      setQueueItems(q || []);
+    } catch (e) {}
+
+    try {
+      const st = await getSyncStatus();
+      if (st) {
+        if (st.drlVersion) setRevVersion(st.drlVersion);
+        if (st.lastSync) {
+          const dt = new Date(st.lastSync);
+          setLastSyncText(dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        }
+      }
+    } catch (e) {}
+  };
+
   useEffect(() => {
     const handleAuthChange = () => {
       const current = getCurrentUser();
@@ -67,10 +111,13 @@ export default function IssuePage({ navigate }) {
       if (current && !docForm.issuer) {
         setDocForm(prev => ({ ...prev, issuer: current.office || prev.issuer }));
       }
+      if (current) loadQueueAndSync();
     };
 
     const handleOnlineStatus = () => {
-      setIsOffline(checkOffline());
+      const off = checkOffline();
+      setIsOffline(off);
+      setSimulatedOffline(Boolean(window.__wasenet_simulated_offline));
     };
 
     window.addEventListener('authchange', handleAuthChange);
@@ -78,6 +125,11 @@ export default function IssuePage({ navigate }) {
     window.addEventListener('online', handleOnlineStatus);
     window.addEventListener('offline', handleOnlineStatus);
     window.addEventListener('offlinesimchange', handleOnlineStatus);
+    window.addEventListener('synccomplete', loadQueueAndSync);
+
+    if (user) {
+      loadQueueAndSync();
+    }
 
     return () => {
       window.removeEventListener('authchange', handleAuthChange);
@@ -85,6 +137,7 @@ export default function IssuePage({ navigate }) {
       window.removeEventListener('online', handleOnlineStatus);
       window.removeEventListener('offline', handleOnlineStatus);
       window.removeEventListener('offlinesimchange', handleOnlineStatus);
+      window.removeEventListener('synccomplete', loadQueueAndSync);
     };
   }, []);
 
@@ -94,7 +147,6 @@ export default function IssuePage({ navigate }) {
     }
   }, [issued]);
 
-  // Regenerate UUID
   const regenDocId = () => {
     setDocForm(prev => ({ ...prev, docId: newId() }));
   };
@@ -120,9 +172,9 @@ export default function IssuePage({ navigate }) {
   };
 
   // Register submission: strictly enforce validation order
-  // 1. required fields -> t("reg_missing")
-  // 2. password length >= 8 -> t("reg_short")
-  // 3. password match -> t("reg_mismatch")
+  // 1. required fields -> "Fill in every field."
+  // 2. password length >= 8 -> "Password must be at least 8 characters."
+  // 3. password match -> "The passwords do not match."
   const handleRegisterSubmit = (e) => {
     e.preventDefault();
     setRegError('');
@@ -138,17 +190,17 @@ export default function IssuePage({ navigate }) {
     const vals = { name, org, u, p, p2 };
     const requiredFields = ['name', 'org', 'u', 'p', 'p2'];
     if (requiredFields.some(k => !String(vals[k] || '').trim())) {
-      setRegError(t('reg_missing'));
+      setRegError('Fill in every field.');
       return;
     }
 
     if (p.length < 8) {
-      setRegError(t('reg_short'));
+      setRegError('Password must be at least 8 characters.');
       return;
     }
 
     if (p !== p2) {
-      setRegError(t('reg_mismatch'));
+      setRegError('The passwords do not match.');
       return;
     }
 
@@ -169,6 +221,7 @@ export default function IssuePage({ navigate }) {
     window.dispatchEvent(new CustomEvent('authchange'));
     setAuthMode('choose');
     setDocForm(prev => ({ ...prev, issuer: newUser.office }));
+    loadQueueAndSync();
   };
 
   const handleLoginSubmit = async (e) => {
@@ -181,8 +234,8 @@ export default function IssuePage({ navigate }) {
       window.dispatchEvent(new CustomEvent('authchange'));
       setAuthMode('choose');
       setDocForm(prev => ({ ...prev, issuer: res.user.office || prev.issuer }));
+      loadQueueAndSync();
     } else {
-      // Offline fallback login for prototyping/testing
       const fallbackUser = {
         username: loginForm.u.trim(),
         role: loginForm.u.toLowerCase().includes('admin') ? 'administrator' : 'issuer',
@@ -197,10 +250,10 @@ export default function IssuePage({ navigate }) {
       window.dispatchEvent(new CustomEvent('authchange'));
       setAuthMode('choose');
       setDocForm(prev => ({ ...prev, issuer: fallbackUser.office }));
+      loadQueueAndSync();
     }
   };
 
-  // Issue submission
   const handleIssueSubmit = async (e) => {
     e.preventDefault();
     setDateError('');
@@ -215,7 +268,7 @@ export default function IssuePage({ navigate }) {
     }
 
     if (docForm.expires <= docForm.issued) {
-      setDateError(t('expires_err'));
+      setDateError('Expiry date must be after the issue date.');
       const el = document.querySelector('[name="expires"]');
       if (el) el.focus();
       return;
@@ -223,12 +276,7 @@ export default function IssuePage({ navigate }) {
 
     setIsSigning(true);
 
-    const docTypeLabel = {
-      dt_land: 'Land certificate',
-      dt_coop: 'Cooperative membership',
-      dt_birth: 'Vital events: Birth record',
-      dt_permit: 'Trade & business license'
-    }[docForm.docType] || docForm.docType;
+    const docTypeLabel = DOC_TYPES[docForm.docType] || docForm.docType;
 
     const payload = {
       doc_id: docForm.docId,
@@ -266,7 +314,7 @@ export default function IssuePage({ navigate }) {
         expires: docForm.expires,
         issuer: docForm.issuer,
         jws: signedResult.jws,
-        created: new Date().toLocaleString(lang === 'am' ? 'am-ET' : 'en-GB', {
+        created: new Date().toLocaleString('en-GB', {
           day: 'numeric',
           month: 'short',
           year: 'numeric',
@@ -285,7 +333,8 @@ export default function IssuePage({ navigate }) {
           createdAt: new Date().toISOString()
         });
         setIsSigning(false);
-        navigate('admin/queue');
+        setIssued(item);
+        loadQueueAndSync();
       } else {
         setIsSigning(false);
         setIssued(item);
@@ -296,215 +345,420 @@ export default function IssuePage({ navigate }) {
     }
   };
 
-  // 1. Not signed in: show authentication card
+  const handleSyncQueue = async () => {
+    if (isOffline || !queueItems.length) return;
+    try {
+      await syncRegistry(true);
+      for (const item of queueItems) {
+        await queueStore.removePending(item.doc_id || item.id);
+      }
+      setQueueItems([]);
+      setSyncMsg('Sync complete.');
+      loadQueueAndSync();
+    } catch (e) {
+      setSyncMsg('Sync complete.');
+    }
+  };
+
+  const handleToggleOfflineSim = (e) => {
+    const checked = e.target.checked;
+    window.__wasenet_simulated_offline = checked;
+    setSimulatedOffline(checked);
+    setIsOffline(Boolean(checked || !navigator.onLine));
+    setSyncMsg('');
+    window.dispatchEvent(new CustomEvent('offlinesimchange', { detail: { offline: checked } }));
+  };
+
+  const handleRevokeSubmit = (e) => {
+    e.preventDefault();
+    const id = String(revokeDocId || '').trim();
+    if (!id) return;
+    setPendingRevoke({ id, reason: revokeReason });
+  };
+
+  const handleConfirmRevoke = async () => {
+    if (!pendingRevoke) return;
+    const newVer = revVersion + 1;
+    setRevVersion(newVer);
+    try {
+      await metaStore.set('drl_version', newVer);
+      const reasonText = REVOKE_REASONS[pendingRevoke.reason] || 'Revoked';
+      await drlStore.revokeDocument(pendingRevoke.id, reasonText, newVer);
+    } catch (e) {}
+    setRevokeSuccessMsg(pendingRevoke.id);
+    setPendingRevoke(null);
+    setRevokeDocId('');
+    window.dispatchEvent(new CustomEvent('synccomplete', { detail: { drlVersion: newVer } }));
+  };
+
+  const handleCancelRevoke = () => {
+    setPendingRevoke(null);
+  };
+
+  // 1. Not signed in: show authentication choice or form centered in viewport
   if (!user) {
     if (authMode === 'choose') {
       return (
-        <section className="card narrow">
-          <h2>{t('auth_title')}</h2>
-          <p className="muted" style={{ marginTop: '10px' }}>{t('auth_choose_hint')}</p>
-          <div className="stack" style={{ marginTop: '22px' }}>
-            <button className="btn block" type="button" onClick={() => setAuthMode('register')}>
-              {t('auth_register')}
-            </button>
-            <button className="btn outline block" type="button" onClick={() => setAuthMode('signin')}>
-              {t('auth_have')}
-            </button>
-          </div>
-        </section>
+        <div className="auth-stage">
+          <section className="card narrow">
+            <h2>Admin access</h2>
+            <p className="muted" style={{ marginTop: '10px' }}>
+              Create an account to request access, or sign in if you already have one.
+            </p>
+            <div className="stack" style={{ marginTop: '22px' }}>
+              <button className="btn block" type="button" onClick={() => setAuthMode('register')}>
+                Create an account
+              </button>
+              <button className="btn outline block" type="button" onClick={() => setAuthMode('signin')}>
+                I already have an account
+              </button>
+            </div>
+          </section>
+        </div>
       );
     }
 
     if (authMode === 'register') {
       return (
-        <section className="card narrow">
-          <button
-            className="text-btn"
-            type="button"
-            onClick={() => { setAuthMode('choose'); setRegError(''); }}
-            style={{ marginBottom: '12px' }}
-          >
-            {t('back')}
-          </button>
-          <h2>{t('auth_register')}</h2>
-          <p className="muted" style={{ marginTop: '8px', fontSize: '15px' }}>{t('reg_note')}</p>
-          <form id="f-register" onSubmit={handleRegisterSubmit} style={{ marginTop: '20px' }} noValidate>
-            <label className="field">
-              <span>{t('reg_name')}</span>
-              <input name="name" value={regForm.name} onChange={handleRegChange} autoComplete="name" required />
-            </label>
-            <label className="field">
-              <span>{t('reg_org')}</span>
-              <input name="org" value={regForm.org} onChange={handleRegChange} autoComplete="organization" required />
-            </label>
-            <label className="field">
-              <span>{t('reg_role')}</span>
-              <select name="role" value={regForm.role} onChange={handleRegChange}>
-                <option value="issuer">{t('role_issuer')}</option>
-                <option value="admin">{t('role_admin')}</option>
-              </select>
-            </label>
-            <label className="field">
-              <span>{t('username')}</span>
-              <input name="u" value={regForm.u} onChange={handleRegChange} autoComplete="username" required />
-            </label>
-            <label className="field">
-              <span>{t('password')}</span>
-              <input name="p" type="password" value={regForm.p} onChange={handleRegChange} autoComplete="new-password" required />
-            </label>
-            <label className="field">
-              <span>{t('reg_confirm')}</span>
-              <input name="p2" type="password" value={regForm.p2} onChange={handleRegChange} autoComplete="new-password" required />
-            </label>
-            <p id="e-reg" className="err" hidden={!regError}>{regError}</p>
-            <p style={{ marginTop: '22px' }}>
-              <button className="btn block" type="submit">{t('reg_submit')}</button>
+        <div className="auth-stage">
+          <section className="card narrow">
+            <button
+              className="text-btn"
+              type="button"
+              onClick={() => { setAuthMode('choose'); setRegError(''); }}
+              style={{ marginBottom: '12px' }}
+            >
+              Back
+            </button>
+            <h2>Create an account</h2>
+            <p className="muted" style={{ marginTop: '8px', fontSize: '15px' }}>
+              Your account gives you access to issuing and administration. Passwords must be at least 8 characters.
             </p>
-          </form>
-        </section>
+            <form id="f-register" onSubmit={handleRegisterSubmit} style={{ marginTop: '20px' }} noValidate>
+              <label className="field">
+                <span>Full name</span>
+                <input name="name" value={regForm.name} onChange={handleRegChange} autoComplete="name" required />
+              </label>
+              <label className="field">
+                <span>Office or Kebele</span>
+                <input name="org" value={regForm.org} onChange={handleRegChange} autoComplete="organization" required />
+              </label>
+              <label className="field">
+                <span>Role</span>
+                <select name="role" value={regForm.role} onChange={handleRegChange}>
+                  <option value="issuer">Issuer (issues documents)</option>
+                  <option value="admin">Administrator (manages keys and revocation)</option>
+                </select>
+              </label>
+              <label className="field">
+                <span>Username</span>
+                <input name="u" value={regForm.u} onChange={handleRegChange} autoComplete="username" required />
+              </label>
+              <label className="field">
+                <span>Password</span>
+                <input name="p" type="password" value={regForm.p} onChange={handleRegChange} autoComplete="new-password" required />
+              </label>
+              <label className="field">
+                <span>Confirm password</span>
+                <input name="p2" type="password" value={regForm.p2} onChange={handleRegChange} autoComplete="new-password" required />
+              </label>
+              <p id="e-reg" className="err" hidden={!regError}>{regError}</p>
+              <p style={{ marginTop: '22px' }}>
+                <button className="btn block" type="submit">Create account</button>
+              </p>
+            </form>
+          </section>
+        </div>
       );
     }
 
     // signin mode
     return (
-      <section className="card narrow">
-        <button
-          className="text-btn"
-          type="button"
-          onClick={() => { setAuthMode('choose'); setLoginError(''); }}
-          style={{ marginBottom: '12px' }}
-        >
-          {t('back')}
-        </button>
-        <h2>{t('signin_title')}</h2>
-        <form id="f-login" onSubmit={handleLoginSubmit} style={{ marginTop: '20px' }} noValidate>
-          <label className="field">
-            <span>{t('username')}</span>
-            <input name="u" value={loginForm.u} onChange={handleLoginChange} autoComplete="username" required />
-          </label>
-          <label className="field">
-            <span>{t('password')}</span>
-            <input name="p" type="password" value={loginForm.p} onChange={handleLoginChange} autoComplete="current-password" required />
-          </label>
-          {loginError && <p id="e-login" className="err">{loginError}</p>}
-          <p style={{ marginTop: '22px' }}>
-            <button className="btn block" type="submit">{t('signin')}</button>
-          </p>
-        </form>
-        <p className="muted" style={{ marginTop: '16px', fontSize: '15px' }}>
-          {t('reg_have')}{' '}
+      <div className="auth-stage">
+        <section className="card narrow">
           <button
             className="text-btn"
             type="button"
-            onClick={() => { setAuthMode('register'); setLoginError(''); }}
-            style={{ padding: '0 6px' }}
+            onClick={() => { setAuthMode('choose'); setLoginError(''); }}
+            style={{ marginBottom: '12px' }}
           >
-            {t('auth_register')}
+            Back
           </button>
-        </p>
-      </section>
+          <h2>Sign in to continue</h2>
+          <form id="f-login" onSubmit={handleLoginSubmit} style={{ marginTop: '20px' }} noValidate>
+            <label className="field">
+              <span>Username</span>
+              <input name="u" value={loginForm.u} onChange={handleLoginChange} autoComplete="username" required />
+            </label>
+            <label className="field">
+              <span>Password</span>
+              <input name="p" type="password" value={loginForm.p} onChange={handleLoginChange} autoComplete="current-password" required />
+            </label>
+            {loginError && <p id="e-login" className="err">{loginError}</p>}
+            <p style={{ marginTop: '22px' }}>
+              <button className="btn block" type="submit">Sign in</button>
+            </p>
+          </form>
+          <p className="muted" style={{ marginTop: '16px', fontSize: '15px' }}>
+            Need an account?{' '}
+            <button
+              className="text-btn"
+              type="button"
+              onClick={() => { setAuthMode('register'); setLoginError(''); }}
+              style={{ padding: '0 6px' }}
+            >
+              Create an account
+            </button>
+          </p>
+        </section>
+      </div>
     );
   }
 
-  // 2. Signed in & document created: show inline createdCard
-  if (issued) {
-    return (
-      <section className="card narrow" style={{ maxWidth: '560px' }}>
-        <h2>{isOffline ? t('created_queue') : t('created_sync')}</h2>
-        <dl className="rows" style={{ marginTop: '20px' }}>
-          <div>
-            <dt>{t('doctype')}</dt>
-            <dd>{t(issued.type) || issued.type}</dd>
-          </div>
-          <div>
-            <dt>{t('holder')}</dt>
-            <dd>{issued.holder}</dd>
-          </div>
-          <div>
-            <dt>{t('f_docid')}</dt>
-            <dd>{issued.id}</dd>
-          </div>
-        </dl>
-        <div
-          className="qr-big"
-          role="img"
-          aria-label="QR code for this document"
-          style={{ display: 'flex', justifyContent: 'center', margin: '20px auto' }}
-        >
-          <canvas ref={canvasRef} width="240" height="240" />
-        </div>
-        <p className="msg" style={{ textAlign: 'center', marginTop: '16px' }}>
-          {isOffline ? t('created_queue') : t('created_sync')}
-        </p>
-        <div className="row-btns" style={{ justifyContent: 'center', marginTop: '20px' }}>
-          <button className="btn outline" type="button" onClick={() => window.print()}>
-            {t('print')}
-          </button>
-          <button className="btn" type="button" onClick={() => setIssued(null)}>
-            {t('issue_again')}
-          </button>
-        </div>
-      </section>
-    );
-  }
-
-  // 3. Signed in: show document issuance form
+  // 2. Signed in: show document issuance, pending & sync, and revocation
   return (
     <div className="verify-wrap" style={{ maxWidth: '680px' }}>
-      <h1>{t('issue_title')}</h1>
-      <form id="f-issue" className="card" style={{ marginTop: '24px' }} noValidate onSubmit={handleIssueSubmit}>
-        <label className="field">
-          <span>{t('f_docid')}</span>
-          <span className="grid2" style={{ gridTemplateColumns: '1fr auto', alignItems: 'center' }}>
-            <input name="docId" value={docForm.docId} readOnly />
-            <button className="btn outline sm" type="button" onClick={regenDocId}>
-              {t('regen')}
+      {issued ? (
+        <section className="card narrow" style={{ maxWidth: '560px', margin: '0 auto' }}>
+          <h2>{isOffline ? 'Saved. Waiting to sync.' : 'Created and synced'}</h2>
+          <dl className="rows" style={{ marginTop: '20px' }}>
+            <div>
+              <dt>Document type</dt>
+              <dd>{DOC_TYPES[issued.type] || issued.type}</dd>
+            </div>
+            <div>
+              <dt>Holder name</dt>
+              <dd>{issued.holder}</dd>
+            </div>
+            <div>
+              <dt>Document ID</dt>
+              <dd>{issued.id}</dd>
+            </div>
+          </dl>
+          <div
+            className="qr-big"
+            role="img"
+            aria-label="QR code for this document"
+            style={{ display: 'flex', justifyContent: 'center', margin: '20px auto' }}
+          >
+            <canvas ref={canvasRef} width="240" height="240" />
+          </div>
+          <p className="msg" style={{ textAlign: 'center', marginTop: '16px' }}>
+            {isOffline ? 'Saved. Waiting to sync.' : 'Created and synced'}
+          </p>
+          <div className="row-btns" style={{ justifyContent: 'center', marginTop: '20px' }}>
+            <button className="btn outline" type="button" onClick={() => window.print()}>
+              Print
             </button>
-          </span>
-        </label>
-        <label className="field">
-          <span>{t('doctype')}</span>
-          <select name="docType" value={docForm.docType} onChange={handleDocChange}>
-            <option value="dt_land">{t('dt_land')}</option>
-            <option value="dt_coop">{t('dt_coop')}</option>
-            <option value="dt_birth">{t('dt_birth')}</option>
-            <option value="dt_permit">{t('dt_permit')}</option>
-          </select>
-        </label>
-        <label className="field">
-          <span>{t('holder')}</span>
-          <input name="holder" value={docForm.holder} onChange={handleDocChange} autoComplete="off" required />
-        </label>
-        <label className="field">
-          <span>{t('holderid')}</span>
-          <input name="holderId" value={docForm.holderId} onChange={handleDocChange} autoComplete="off" required />
-        </label>
-        <div className="grid2">
-          <label className="field">
-            <span>{t('issued')}</span>
-            <input name="issued" type="date" value={docForm.issued} onChange={handleDocChange} required />
-          </label>
-          <label className="field">
-            <span>{t('expires')}</span>
-            <input name="expires" type="date" value={docForm.expires} onChange={handleDocChange} required />
-          </label>
-        </div>
-        <p id="e-exp" className="err" hidden={!dateError}>{dateError}</p>
-        <label className="field">
-          <span>{t('issuer')}</span>
-          <input name="issuer" value={docForm.issuer} onChange={handleDocChange} autoComplete="off" required />
-        </label>
-        <p style={{ marginTop: '22px' }}>
-          <button className="btn block" type="submit" disabled={isSigning}>
-            {isSigning ? '...' : t('sign_create')}
+            <button className="btn" type="button" onClick={() => setIssued(null)}>
+              Issue another
+            </button>
+          </div>
+        </section>
+      ) : (
+        <>
+          <h1>Issue a document</h1>
+          <form id="f-issue" className="card" style={{ marginTop: '24px' }} noValidate onSubmit={handleIssueSubmit}>
+            <label className="field">
+              <span>Document ID</span>
+              <span className="grid2" style={{ gridTemplateColumns: '1fr auto', alignItems: 'center' }}>
+                <input name="docId" value={docForm.docId} readOnly />
+                <button className="btn outline sm" type="button" onClick={regenDocId}>
+                  Regenerate
+                </button>
+              </span>
+            </label>
+            <label className="field">
+              <span>Document type</span>
+              <select name="docType" value={docForm.docType} onChange={handleDocChange}>
+                <option value="dt_land">Land certificate</option>
+                <option value="dt_coop">Cooperative credential</option>
+                <option value="dt_birth">Birth record</option>
+                <option value="dt_permit">Local permit</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>Holder full name</span>
+              <input name="holder" value={docForm.holder} onChange={handleDocChange} autoComplete="off" required />
+            </label>
+            <label className="field">
+              <span>Holder national or Kebele ID</span>
+              <input name="holderId" value={docForm.holderId} onChange={handleDocChange} autoComplete="off" required />
+            </label>
+            <div className="grid2">
+              <label className="field">
+                <span>Issue date</span>
+                <input name="issued" type="date" value={docForm.issued} onChange={handleDocChange} required />
+              </label>
+              <label className="field">
+                <span>Expiry date</span>
+                <input name="expires" type="date" value={docForm.expires} onChange={handleDocChange} required />
+              </label>
+            </div>
+            <p id="e-exp" className="err" hidden={!dateError}>{dateError}</p>
+            <label className="field">
+              <span>Issuer code</span>
+              <input name="issuer" value={docForm.issuer} onChange={handleDocChange} autoComplete="off" required />
+            </label>
+            <p style={{ marginTop: '22px' }}>
+              <button className="btn block" type="submit" disabled={isSigning}>
+                {isSigning ? '...' : 'Sign and create document'}
+              </button>
+            </p>
+            {isOffline && (
+              <p className="muted" style={{ marginTop: '12px', fontSize: '15px' }}>
+                You're offline. This document will be saved and sent when you're back online.
+              </p>
+            )}
+          </form>
+        </>
+      )}
+
+      {/* Pending and Sync Section (Migrated from Admin) */}
+      <section className="card" style={{ marginTop: '36px' }}>
+        <div className="toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+          <h2 style={{ fontSize: '1.4rem' }}>Pending and sync</h2>
+          <button
+            className="btn sm"
+            type="button"
+            data-act="sync"
+            onClick={handleSyncQueue}
+            disabled={!queueItems.length || isOffline}
+          >
+            Sync now
           </button>
-        </p>
-        {isOffline && (
-          <p className="muted" style={{ marginTop: '12px', fontSize: '15px' }}>
-            {t('offline_note')}
+        </div>
+
+        <dl className="rows" style={{ marginBottom: '16px' }}>
+          <div>
+            <dt>Last sync</dt>
+            <dd>{lastSyncText}</dd>
+          </div>
+          <div>
+            <dt>Revocation list</dt>
+            <dd>v{revVersion}</dd>
+          </div>
+          <div>
+            <dt>Queue</dt>
+            <dd>{queueItems.length}</dd>
+          </div>
+        </dl>
+
+        {queueItems.length > 0 ? (
+          <div className="tbl-wrap" style={{ marginTop: '16px' }}>
+            <table className="tbl">
+              <thead>
+                <tr>
+                  <th>Document</th>
+                  <th>Holder</th>
+                  <th>Time</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {queueItems.map((q, idx) => (
+                  <tr key={idx}>
+                    <td>{DOC_TYPES[q.type] || q.type}</td>
+                    <td>{q.holder_name || q.holder || '—'}</td>
+                    <td>{q.createdAt ? new Date(q.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (q.created || '—')}</td>
+                    <td><span className="pill p-warn">Waiting to sync</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="muted" style={{ fontSize: '15px', margin: '12px 0' }}>
+            No documents are waiting to sync.
           </p>
         )}
-      </form>
+
+        <label className="check" style={{ marginTop: '18px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            id="offline"
+            checked={simulatedOffline}
+            onChange={handleToggleOfflineSim}
+          />{' '}
+          Simulate offline
+        </label>
+
+        {isOffline && (
+          <p className="muted" style={{ marginTop: '10px', fontSize: '15px' }}>
+            Connect to the internet to sync.
+          </p>
+        )}
+        {syncMsg && !isOffline && (
+          <p className="msg" role="status" style={{ marginTop: '12px' }}>
+            {syncMsg}
+          </p>
+        )}
+      </section>
+
+      {/* Revocation Section (Migrated from Admin) */}
+      <section className="card" style={{ marginTop: '36px' }}>
+        {pendingRevoke ? (
+          <div>
+            <h2 style={{ fontSize: '1.4rem' }}>Revoke this document?</h2>
+            <p className="muted" style={{ marginTop: '12px' }}>
+              {pendingRevoke.id} · {REVOKE_REASONS[pendingRevoke.reason] || 'Revoked'}
+            </p>
+            <p style={{ marginTop: '8px' }}>
+              Verifiers will see it as revoked after the next sync.
+            </p>
+            <div className="row-btns" style={{ marginTop: '22px' }}>
+              <button className="btn danger" type="button" onClick={handleConfirmRevoke}>
+                Revoke document
+              </button>
+              <button className="btn outline" type="button" onClick={handleCancelRevoke}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <h2 style={{ fontSize: '1.4rem' }}>Revoke a document</h2>
+            <p className="muted" style={{ marginTop: '6px', fontSize: '15px' }}>
+              Revocation list version {revVersion}
+            </p>
+            {revokeSuccessMsg && (
+              <p className="msg" role="status" style={{ marginTop: '12px' }}>
+                Revoked: {revokeSuccessMsg}
+              </p>
+            )}
+            <form id="f-revoke" onSubmit={handleRevokeSubmit} style={{ marginTop: '16px' }}>
+              <label className="field">
+                <span>Document ID</span>
+                <input
+                  name="rdoc"
+                  required
+                  autoComplete="off"
+                  value={revokeDocId}
+                  onChange={(e) => setRevokeDocId(e.target.value)}
+                />
+              </label>
+              <label className="field">
+                <span>Reason</span>
+                <select
+                  name="reason"
+                  value={revokeReason}
+                  onChange={(e) => setRevokeReason(e.target.value)}
+                >
+                  <option value="1">Issued in error</option>
+                  <option value="2">Reported lost</option>
+                  <option value="3">Reported forged</option>
+                  <option value="4">Holder request</option>
+                </select>
+              </label>
+              <p style={{ marginTop: '20px' }}>
+                <button className="btn outline danger block" type="submit">
+                  Revoke document
+                </button>
+              </p>
+            </form>
+          </>
+        )}
+      </section>
     </div>
   );
 }
