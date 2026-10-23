@@ -1,14 +1,47 @@
 import React, { useState, useEffect } from 'react';
-import { useI18n } from '../i18n.jsx';
 import { verifyDocumentCredential } from '../crypto.js';
 import { keyStore, drlStore, auditStore } from '../storage.js';
 
 const RESULTS_CONFIG = {
-  valid: { k: 'valid', f: 1 },
-  tampered: { k: 'tampered', f: 0, note: 'hide_note' },
-  revoked: { k: 'revoked', f: 1 },
-  expired: { k: 'expired', f: 1 },
-  error: { k: 'error', f: 0, note: 'r_error_note' }
+  valid: {
+    k: 'valid',
+    title: 'Valid',
+    desc: 'Authentic and current.',
+    f: 1
+  },
+  tampered: {
+    k: 'tampered',
+    title: 'Tampered',
+    desc: 'This document failed the signature check. Do not accept it.',
+    note: 'Details are hidden because the signature did not match.',
+    f: 0
+  },
+  revoked: {
+    k: 'revoked',
+    title: 'Revoked',
+    desc: 'This document has been cancelled by the issuing office.',
+    f: 1
+  },
+  expired: {
+    k: 'expired',
+    title: 'Expired',
+    desc: 'The signature is genuine, but this document is past its expiry date.',
+    f: 1
+  },
+  error: {
+    k: 'error',
+    title: 'Could not read',
+    desc: 'This QR code could not be read. Try again with better lighting.',
+    note: 'Hold the phone steady and keep the whole code inside the frame.',
+    f: 0
+  }
+};
+
+const DOC_TYPES = {
+  dt_land: 'Land certificate',
+  dt_coop: 'Cooperative credential',
+  dt_birth: 'Birth record',
+  dt_permit: 'Local permit'
 };
 
 const DEFAULT_DOC = {
@@ -22,8 +55,6 @@ const DEFAULT_DOC = {
 };
 
 export default function ResultPage({ routeParams, navigate }) {
-  const { t, lang } = useI18n();
-
   const [activeStatus, setActiveStatus] = useState(() => {
     if (routeParams?.s && RESULTS_CONFIG[routeParams.s]) return routeParams.s;
     return 'valid';
@@ -33,7 +64,6 @@ export default function ResultPage({ routeParams, navigate }) {
 
   useEffect(() => {
     async function evaluate() {
-      // If direct state chip was selected
       if (routeParams?.s && RESULTS_CONFIG[routeParams.s]) {
         setActiveStatus(routeParams.s);
         if (routeParams.s === 'expired') {
@@ -63,7 +93,7 @@ export default function ResultPage({ routeParams, navigate }) {
           if (verification.payload) {
             const p = verification.payload;
             setDocData({
-              type: lang === 'am' && p.type_am ? p.type_am : (p.type || DEFAULT_DOC.type),
+              type: p.type || DEFAULT_DOC.type,
               holder: p.holder_name || p.holder || DEFAULT_DOC.holder,
               holderId: p.holder_id || p.holderId || DEFAULT_DOC.holderId,
               issuer: p.issuer_code || p.issuer || DEFAULT_DOC.issuer,
@@ -76,7 +106,6 @@ export default function ResultPage({ routeParams, navigate }) {
           setActiveStatus('error');
         }
       } else if (docId) {
-        // Query by manual Document ID
         try {
           const revRecord = await drlStore.isRevoked(docId);
           await auditStore.addRecord(docId, revRecord ? 'REVOKED' : 'VALID');
@@ -90,26 +119,28 @@ export default function ResultPage({ routeParams, navigate }) {
     }
 
     evaluate();
-  }, [routeParams?.jws, routeParams?.id, routeParams?.s, lang]);
+  }, [routeParams?.jws, routeParams?.id, routeParams?.s]);
 
   const cfg = RESULTS_CONFIG[activeStatus] || RESULTS_CONFIG.valid;
   const isDetailsVisible = cfg.f === 1;
 
+  const displayType = DOC_TYPES[docData.type] || docData.type;
+
   const fields = [
-    ['f_type', docData.type.startsWith('dt_') ? t(docData.type) : docData.type],
-    ['f_holder', docData.holder],
-    ['f_holderid', docData.holderId],
-    ['f_issuer', docData.issuer],
-    ['f_docid', docData.docId],
-    ['f_issued', docData.issued],
-    ['f_expires', docData.expires]
+    ['Document type', displayType],
+    ['Holder name', docData.holder],
+    ['Holder ID', docData.holderId],
+    ['Issuer code', docData.issuer],
+    ['Document ID', docData.docId],
+    ['Issued', docData.issued],
+    ['Expires', docData.expires]
   ];
 
   return (
     <div>
       <section className="banner" data-s={cfg.k} role="status">
-        <h2>{t(`r_${cfg.k}_t`)}</h2>
-        <p>{t(`r_${cfg.k}_x`)}</p>
+        <h2>{cfg.title}</h2>
+        <p>{cfg.desc}</p>
       </section>
 
       {isDetailsVisible && (
@@ -117,7 +148,7 @@ export default function ResultPage({ routeParams, navigate }) {
           <dl className="rows">
             {fields.map(([lbl, val]) => (
               <div key={lbl}>
-                <dt>{t(lbl)}</dt>
+                <dt>{lbl}</dt>
                 <dd>{val}</dd>
               </div>
             ))}
@@ -127,7 +158,7 @@ export default function ResultPage({ routeParams, navigate }) {
 
       {cfg.note && (
         <p className="note" style={{ marginTop: '16px' }}>
-          {t(cfg.note)}
+          {cfg.note}
         </p>
       )}
 
@@ -140,13 +171,39 @@ export default function ResultPage({ routeParams, navigate }) {
             navigate('verify');
           }}
         >
-          {t('result_again')}
+          Scan another document
         </a>
+
+        {(cfg.k === 'tampered' || cfg.k === 'revoked') && (
+          <a
+            className="btn outline danger"
+            href={`#/report?docid=${encodeURIComponent(docData.docId || '')}`}
+            onClick={(e) => {
+              e.preventDefault();
+              navigate('report', { docid: docData.docId || '' });
+            }}
+          >
+            Report a fraud
+          </a>
+        )}
+
+        {cfg.k === 'error' && (
+          <a
+            className="btn outline"
+            href="#/contact"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate('contact');
+            }}
+          >
+            Contact us
+          </a>
+        )}
       </div>
 
       <div className="stack" style={{ marginTop: '36px' }}>
         <p className="muted" style={{ fontSize: '15px' }}>
-          {t('result_demo')}
+          Preview another result
         </p>
         <div className="chips">
           {Object.keys(RESULTS_CONFIG).map((s) => (
@@ -161,7 +218,7 @@ export default function ResultPage({ routeParams, navigate }) {
                 navigate('result', { s });
               }}
             >
-              {t(`r_${s}_t`)}
+              {RESULTS_CONFIG[s].title}
             </a>
           ))}
         </div>
