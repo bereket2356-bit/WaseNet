@@ -23,14 +23,16 @@
   --font-sans: "Atkinson Hyperlegible", system-ui, sans-serif;
   --font-heading: var(--font-serif);
   --font-body: var(--font-sans);
-  --font-heading-am: "Noto Sans Ethiopic", system-ui, sans-serif;
-  --font-body-am: "Noto Sans Ethiopic", "Atkinson Hyperlegible", system-ui, sans-serif;
 
   /* Radius tokens */
   --radius-card: 20px;
   --radius-panel: 14px;
   --radius-input: 12px;
   --radius-pill: 999px;
+
+  /* Frosted header tokens */
+  --header-bg: rgba(245, 246, 244, 0.70);
+  --header-border: rgba(217, 222, 219, 0.60);
 
   /* Compatibility status tokens */
   --status-valid: var(--ok-bg);
@@ -53,6 +55,8 @@
   --danger: #B9463B;
   --ok-bg: #2F7A58;
   --warn-bg: #8A5A12;
+  --header-bg: rgba(18, 26, 29, 0.65);
+  --header-border: rgba(46, 61, 66, 0.65);
   color-scheme: dark;
 }
 
@@ -73,11 +77,6 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-html[lang="am"] body {
-  font-family: "Noto Sans Ethiopic", "Atkinson Hyperlegible", system-ui, sans-serif;
-  line-height: 1.8;
-}
-
 h1, h2, h3, p {
   margin: 0;
 }
@@ -87,15 +86,6 @@ h1, h2, h3 {
   font-weight: 500;
   letter-spacing: -0.015em;
   line-height: 1.12;
-}
-
-html[lang="am"] h1,
-html[lang="am"] h2,
-html[lang="am"] h3,
-html[lang="am"] .brand {
-  font-family: "Noto Sans Ethiopic", system-ui, sans-serif;
-  font-weight: 700;
-  letter-spacing: 0;
 }
 
 h1 {
@@ -121,13 +111,22 @@ a {
   outline-offset: 3px;
 }
 
-/* Header: one clean row */
+/* Header: one clean row with frosted-glass effect */
 .top {
   position: sticky;
   top: 0;
-  z-index: 10;
-  background: var(--bg);
-  border-bottom: 1px solid var(--line);
+  z-index: 100;
+  background: var(--header-bg);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(160%);
+  border-bottom: 1px solid var(--header-border);
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .top {
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+  }
 }
 
 .bar {
@@ -208,6 +207,30 @@ nav button.nav-link[aria-current="page"] {
   cursor: pointer;
 }
 
+.header-report-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 24px;
+  border-radius: 999px;
+  border: 1px solid var(--danger);
+  background: transparent;
+  color: var(--danger);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.header-report-btn:hover {
+  background: var(--danger);
+  color: #fff;
+}
+
 .text-btn {
   border-color: transparent;
   background: transparent;
@@ -282,13 +305,40 @@ nav button.nav-link[aria-current="page"] {
 .btn.sm {
   min-height: 44px;
   font-size: 15px;
-  padding: 0 16px;
+  padding: 0 24px;
 }
 
 .btn.danger {
   background: var(--danger);
   border-color: var(--danger);
   color: #fff;
+}
+
+.btn.outline.danger {
+  background: transparent;
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.btn.outline.danger:hover {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+
+.field-err {
+  color: var(--danger);
+  font-size: 14px;
+  font-weight: 400;
+  margin-top: 4px;
+}
+
+.char-count {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--muted);
+  text-align: right;
+  margin-top: 4px;
 }
 
 .btn.block {
@@ -396,6 +446,68 @@ nav button.nav-link[aria-current="page"] {
   margin: 0 auto;
 }
 
+/* Issue page signed-out center stage */
+.auth-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 69px - 48px);
+  min-height: calc(100dvh - 69px - 48px);
+  width: 100%;
+}
+
+.auth-stage .card.narrow {
+  width: 100%;
+  max-width: 460px;
+  margin: 0 auto;
+}
+
+@media (max-width: 640px) {
+  .auth-stage {
+    min-height: auto;
+    padding-top: 24px;
+    padding-bottom: 24px;
+    justify-content: flex-start;
+  }
+}
+
+/* Shared page header & intro */
+.page-intro {
+  text-align: center;
+  padding-top: 40px;
+  padding-bottom: 24px;
+  margin: 0 auto;
+}
+
+.page-intro h1 {
+  font-family: var(--font-heading);
+  font-size: clamp(2.3rem, 6vw, 3.9rem);
+  font-weight: 500;
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+  margin-bottom: 12px;
+}
+
+.page-intro p,
+.page-intro .intro,
+.page-intro .lead {
+  max-width: 52ch;
+  margin-top: 0;
+  margin-left: auto;
+  margin-right: auto;
+  color: var(--muted);
+  font-size: 1.12rem;
+  line-height: 1.6;
+}
+
+@media (max-width: 620px) {
+  .page-intro {
+    padding-top: 24px;
+    padding-bottom: 24px;
+  }
+}
+
 .stack > * + * {
   margin-top: 18px;
 }
@@ -413,7 +525,6 @@ nav button.nav-link[aria-current="page"] {
 /* Home */
 .hero {
   text-align: center;
-  padding: 24px 0 0;
 }
 
 .badge {
@@ -437,20 +548,17 @@ nav button.nav-link[aria-current="page"] {
 }
 
 .hero h1 {
-  margin: 24px auto 0;
-  max-width: 14ch;
+  margin-top: 16px;
+  margin-bottom: 12px;
 }
 
-.lead {
-  max-width: 50ch;
-  margin: 20px auto 0;
-  color: var(--muted);
-  font-size: 1.12rem;
+.hero .lead {
+  margin-top: 0;
 }
 
 .hero .row-btns {
   justify-content: center;
-  margin-top: 32px;
+  margin-top: 24px;
 }
 
 .showcase {
@@ -563,12 +671,6 @@ nav button.nav-link[aria-current="page"] {
   line-height: 1;
 }
 
-html[lang="am"] .stat strong {
-  font-family: "Noto Sans Ethiopic", sans-serif;
-  font-weight: 700;
-  font-size: 1.8rem;
-}
-
 .stat span {
   color: var(--muted);
   font-size: 15px;
@@ -609,10 +711,30 @@ html[lang="am"] .stat strong {
   margin-top: 28px;
 }
 
+.close .row-btns {
+  margin-top: 28px;
+}
+
+.close .row-btns .btn {
+  margin-top: 0;
+}
+
 .close .btn:hover {
   background: var(--accent-text);
   color: var(--on-ink);
   border-color: var(--accent-text);
+}
+
+.close .btn.outline {
+  background: transparent;
+  color: var(--on-ink);
+  border-color: var(--on-ink);
+}
+
+.close .btn.outline:hover {
+  background: var(--on-ink);
+  color: var(--ink);
+  border-color: var(--on-ink);
 }
 
 @media (min-width: 720px) {
@@ -621,9 +743,6 @@ html[lang="am"] .stat strong {
   }
   .feat {
     grid-template-columns: repeat(3, 1fr);
-  }
-  .hero {
-    padding-top: 48px;
   }
 }
 
@@ -640,9 +759,11 @@ html[lang="am"] .stat strong {
 }
 
 .scan-btn {
-  min-height: 76px;
-  font-size: 20px;
-  border-radius: 20px;
+  min-height: 52px;
+  font-size: 17px;
+  font-weight: 700;
+  padding: 0 24px;
+  border-radius: 999px;
 }
 
 .scan-hint {
@@ -967,7 +1088,8 @@ html[lang="am"] .stat strong {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  * {
+  *,
+  .top {
     transition: none !important;
     animation: none !important;
   }
