@@ -3,6 +3,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-1.1-blue.svg)](CHANGELOG.md)
 
+**Author:** Bereket Teshome (ID: `CTC-1367-26`)
+
 **Offline-first document authentication for public-sector credentials.**
 
 WaseNet lets authorized institutions issue digitally signed credentials as QR codes, and lets anyone verify them in the field without a network connection.
