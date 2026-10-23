@@ -6,105 +6,97 @@ export default function LandingPage({ navigate }) {
 
   return (
     <div>
-      {/* Hero Section */}
-      <section className="hero wrap" id="verify">
-        <a className="pill" href="#stats">
-          <b>{t('landing.hero.pill_tag')}</b> {t('landing.hero.pill_text')}
-        </a>
-        <h1 className="serif">{t('landing.hero.headline')}</h1>
-        <p className="sub">{t('landing.hero.supporting')}</p>
-        <div className="ctas">
-          <button onClick={() => navigate('verify')} className="btn">
-            {t('landing.hero.scan_btn')}
-          </button>
-          <a href="#for" className="btn light">
-            {t('landing.hero.offices_btn')}
+      <section className="hero">
+        <span className="badge">
+          <b>{t('badge_new')}</b>
+          {t('badge_text')}
+        </span>
+        <h1>{t('hero_title')}</h1>
+        <p className="lead">{t('hero_sub')}</p>
+        <div className="row-btns">
+          <a
+            className="btn"
+            href="#/verify"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate('verify');
+            }}
+          >
+            {t('cta_scan')}
+          </a>
+          <a
+            className="btn outline"
+            href="#/issue"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate('issue');
+            }}
+          >
+            {t('cta_offices')}
           </a>
         </div>
+      </section>
 
-        {/* Product Preview */}
-        <div className="frame" aria-label="Example verification result">
-          <div className="stage">
-            <article className="cert">
-              <div>
-                <h3 className="serif">{t('landing.preview.doc_title')}</h3>
-                <dl>
-                  <div>
-                    <dt>{t('landing.preview.holder_label')}</dt>
-                    <dd>{t('landing.preview.holder_name')}</dd>
-                  </div>
-                  <div>
-                    <dt>{t('landing.preview.issuer_label')}</dt>
-                    <dd>{t('landing.preview.issuer_code')}</dd>
-                  </div>
-                  <div>
-                    <dt>{t('landing.preview.issued_label')}</dt>
-                    <dd>{t('landing.preview.issued_val') || '1 Oct 2026'}</dd>
-                  </div>
-                  <div>
-                    <dt>{t('landing.preview.expires_label')}</dt>
-                    <dd>{t('landing.preview.expires_val') || '1 Oct 2028'}</dd>
-                  </div>
-                </dl>
-              </div>
-              <div className="qr" role="img" aria-label="QR code">
-                {t('landing.preview.qr_code')}
-              </div>
-              <p className="status">
-                {t('landing.preview.valid_title')}{' '}
-                <span>{t('landing.preview.valid_sub')}</span>
-              </p>
-            </article>
-          </div>
-          <div className="bar">
-            <span>{t('landing.preview.caption_doc')}</span>
-            <span>{t('landing.preview.caption_time')}</span>
-          </div>
+      <section className="showcase" aria-label="Example result">
+        <div className="stage">
+          <article className="cert">
+            <div>
+              <h3>{t('dt_land')}</h3>
+              <dl className="rows">
+                <div>
+                  <dt>{t('f_holder')}</dt>
+                  <dd>Abebe Bikila</dd>
+                </div>
+                <div>
+                  <dt>{t('f_issuer')}</dt>
+                  <dd>KEBELE-04-AA</dd>
+                </div>
+                <div>
+                  <dt>{t('f_expires')}</dt>
+                  <dd>1 Oct 2028</dd>
+                </div>
+              </dl>
+            </div>
+            <div className="qr" role="img" aria-label="QR code">
+              QR
+            </div>
+            <p className="cert-status">
+              {t('r_valid_t')} <span>{t('r_valid_x')}</span>
+            </p>
+          </article>
         </div>
       </section>
 
-      {/* Stats Section */}
-      <section className="wrap stats" id="stats" aria-label="Key figures">
-        <div>
-          <strong>{t('landing.figures.f1_num')}</strong>
-          <span>{t('landing.figures.f1_label')}</span>
-        </div>
-        <div>
-          <strong>{t('landing.figures.f2_num')}</strong>
-          <span>{t('landing.figures.f2_label')}</span>
-        </div>
-        <div>
-          <strong>{t('landing.figures.f3_num')}</strong>
-          <span>{t('landing.figures.f3_label')}</span>
-        </div>
+      <section className="section stats" aria-label="Key figures">
+        {[1, 2, 3].map((i) => (
+          <div className="card stat" key={i}>
+            <strong>{t(`stat${i}_n`)}</strong>
+            <span>{t(`stat${i}_l`)}</span>
+          </div>
+        ))}
       </section>
 
-      {/* Features Section */}
-      <section className="wrap features" id="for">
-        <h2 className="serif">{t('landing.features.heading')}</h2>
-        <p>{t('landing.features.intro')}</p>
-        <div className="cols">
-          <article className="col">
-            <h3>{t('landing.features.c1_title')}</h3>
-            <p>{t('landing.features.c1_body')}</p>
+      <section className="section feat" aria-label="Features">
+        {[1, 2, 3].map((i) => (
+          <article className="card" key={i}>
+            <h3>{t(`f${i}_t`)}</h3>
+            <p>{t(`f${i}_d`)}</p>
           </article>
-          <article className="col">
-            <h3>{t('landing.features.c2_title')}</h3>
-            <p>{t('landing.features.c2_body')}</p>
-          </article>
-          <article className="col">
-            <h3>{t('landing.features.c3_title')}</h3>
-            <p>{t('landing.features.c3_body')}</p>
-          </article>
-        </div>
+        ))}
+      </section>
 
-        <div className="close">
-          <h2 className="serif">{t('landing.closing.heading')}</h2>
-          <p>{t('landing.closing.supporting')}</p>
-          <button onClick={() => navigate('verify')} className="btn">
-            {t('landing.closing.btn')}
-          </button>
-        </div>
+      <section className="section card close">
+        <h2>{t('close_title')}</h2>
+        <a
+          className="btn"
+          href="#/verify"
+          onClick={(e) => {
+            e.preventDefault();
+            navigate('verify');
+          }}
+        >
+          {t('close_btn')}
+        </a>
       </section>
     </div>
   );
