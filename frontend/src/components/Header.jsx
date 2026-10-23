@@ -1,268 +1,167 @@
 import React, { useState, useEffect } from 'react';
 import { useI18n } from '../i18n.jsx';
 import { getCurrentUser, logout } from '../auth.js';
-import { getSyncStatus } from '../sync.js';
-import { seedInitialRegistryData } from '../storage.js';
 
-export default function Header({ currentRoute, navigate, onOpenMenu }) {
-  const { t, lang, toggleLang } = useI18n();
+const ICON_MOON = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" width="20" height="20">
+    <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+  </svg>
+);
+
+const ICON_SUN = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true" width="20" height="20">
+    <circle cx="12" cy="12" r="4" />
+    <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+  </svg>
+);
+
+const ICON_GLOBE = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true" width="20" height="20">
+    <circle cx="12" cy="12" r="9" />
+    <path d="M3 12h18M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18" />
+  </svg>
+);
+
+export default function Header({ currentRoute, navigate }) {
+  const { t, lang, toggleLang, theme, toggleTheme } = useI18n();
   const [user, setUser] = useState(getCurrentUser());
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [syncStatus, setSyncStatus] = useState({
-    lastSync: null,
-    drlVersion: 42,
-    keyVersion: 1
-  });
-
-  const refreshStatus = async () => {
-    try {
-      await seedInitialRegistryData();
-      const status = await getSyncStatus();
-      setSyncStatus(status);
-      setUser(getCurrentUser());
-    } catch (e) {}
-  };
 
   useEffect(() => {
-    refreshStatus();
-
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    const handleSyncComplete = (e) => {
-      if (e.detail) setSyncStatus(e.detail);
+    const handleAuthChange = () => {
+      setUser(getCurrentUser());
     };
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    window.addEventListener('synccomplete', handleSyncComplete);
-
+    window.addEventListener('storage', handleAuthChange);
+    window.addEventListener('authchange', handleAuthChange);
     return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-      window.removeEventListener('synccomplete', handleSyncComplete);
+      window.removeEventListener('storage', handleAuthChange);
+      window.removeEventListener('authchange', handleAuthChange);
     };
   }, []);
-
-  let syncTimeText = t('sync.never');
-  if (syncStatus.lastSync) {
-    try {
-      const dt = new Date(syncStatus.lastSync);
-      syncTimeText = dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } catch (e) {}
-  }
 
   const handleLogout = () => {
     logout();
     setUser(null);
-    navigate('login');
+    window.dispatchEvent(new CustomEvent('authchange'));
+    navigate('home');
   };
 
+  // Determine active nav section
+  const getNavPage = () => {
+    if (currentRoute === 'verify' || currentRoute === 'result') return 'verify';
+    if (currentRoute === 'how') return 'how';
+    if (currentRoute === 'issue' || currentRoute === 'issue-done') return 'issue';
+    if (
+      currentRoute === 'admin' ||
+      currentRoute === 'queue' ||
+      currentRoute === 'audit' ||
+      currentRoute === 'admin-keys' ||
+      currentRoute === 'admin-revoke' ||
+      currentRoute === 'admin-issuers' ||
+      currentRoute === 'sync'
+    ) {
+      return 'admin';
+    }
+    return '';
+  };
+
+  const navPage = getNavPage();
+
   return (
-    <>
-      {/* Offline Alert Banner (shown only when offline) */}
-      {!isOnline && (
-        <div id="header-offline-banner" className="offline-banner" role="alert">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-            <path d="M1 1l22 22M16.72 11.06A10.94 10.94 0 0 1 19 12.55M5 12.55a10.94 10.94 0 0 1 5.17-2.39M10.71 5.05A16 16 0 0 1 22.58 9M1.42 9a15.91 15.91 0 0 1 4.7-2.88M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/>
-          </svg>
-          <span>{t('sync.offline_banner')}</span>
-        </div>
-      )}
+    <header className="top" role="banner">
+      <div className="wrap bar">
+        <a
+          href="#/"
+          onClick={(e) => {
+            e.preventDefault();
+            navigate('home');
+          }}
+          className="brand"
+          aria-label="WaseNet Home"
+        >
+          {t('brand.name') || 'WaseNet'}
+        </a>
 
-      {/* Sync Status Bar */}
-      <div className="sync-bar" aria-label="System status">
-        <div className="wrap sync-bar-inner">
-          {/* Mobile concise sync item */}
-          <div className="sync-items-mobile">
-            <button
-              onClick={() => navigate('sync')}
-              className="sync-link"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', font: 'inherit', padding: 0, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-              aria-label={`System status: ${isOnline ? 'Online' : 'Offline'}. Tap to view registry sync details.`}
-            >
-              <span className={`status-dot ${isOnline ? '' : 'offline'}`}></span>
-              <span>{isOnline ? t('sync.online') : t('sync.offline')}</span>
-              <span className="muted-text" style={{ fontSize: '11px', textDecoration: 'none' }}>• {t('sync.action')}</span>
-            </button>
-          </div>
-
-          {/* Desktop full sync items */}
-          <div className="sync-items-desktop">
-            <span className="sync-item">
-              <span className={`status-dot ${isOnline ? '' : 'offline'}`}></span>
-              <span>{isOnline ? t('sync.online') : t('sync.offline')}</span>
-            </span>
-            <span className="sync-item">
-              <span>{t('sync.last_sync')}</span>
-              <strong>{syncTimeText}</strong>
-            </span>
-            <span className="sync-item">
-              <span>{t('sync.drl_version', { v: syncStatus.drlVersion })}</span>
-            </span>
-            <span className="sync-item">
-              <span>{t('sync.key_version', { v: syncStatus.keyVersion })}</span>
-            </span>
-            <button
-              onClick={() => navigate('sync')}
-              className="sync-link"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', font: 'inherit', padding: 0 }}
-            >
-              {t('sync.action')}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Header */}
-      <header role="banner">
-        <div className="wrap">
-          <button
-            onClick={() => navigate('landing')}
-            className="logo serif"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', color: 'var(--ink)' }}
-            aria-label="WaseNet Home"
+        <nav id="nav" aria-label="Main">
+          <a
+            href="#/verify"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate('verify');
+            }}
+            className="nav-link"
+            aria-current={navPage === 'verify' ? 'page' : undefined}
           >
-            {t('brand.name')}
+            {t('nav_verify')}
+          </a>
+          <a
+            href="#/how"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate('how');
+            }}
+            className="nav-link"
+            aria-current={navPage === 'how' ? 'page' : undefined}
+          >
+            {t('nav_how')}
+          </a>
+          <a
+            href="#/issue"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate('issue');
+            }}
+            className="nav-link"
+            aria-current={navPage === 'issue' ? 'page' : undefined}
+          >
+            {t('nav_issue')}
+          </a>
+          <a
+            href="#/admin"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate('admin');
+            }}
+            className="nav-link"
+            aria-current={navPage === 'admin' ? 'page' : undefined}
+          >
+            {t('nav_admin')}
+          </a>
+        </nav>
+
+        <div className="tools" id="tools">
+          {user && (
+            <button
+              className="text-btn"
+              type="button"
+              id="header-logout-btn"
+              onClick={handleLogout}
+            >
+              {t('sign_out')}
+            </button>
+          )}
+
+          <button
+            className="icon-btn"
+            id="lang"
+            type="button"
+            onClick={toggleLang}
+            aria-label={t('lang_switch')}
+          >
+            {ICON_GLOBE}
+            <span>{lang === 'en' ? 'አማርኛ' : 'EN'}</span>
           </button>
 
-          {/* Desktop Navigation (>= 768px) */}
-          <nav className="header-desktop-nav" aria-label="Main Desktop">
-            <button
-              onClick={() => navigate('verify')}
-              className={`link ${currentRoute === 'verify' ? 'active' : ''}`}
-            >
-              {t('nav.verify')}
-            </button>
-
-            {user ? (
-              <>
-                <button
-                  onClick={() => navigate('issue')}
-                  className={`link ${currentRoute === 'issue' || currentRoute === 'issue-done' ? 'active' : ''}`}
-                >
-                  {t('nav.issue')}
-                </button>
-                <button
-                  onClick={() => navigate('queue')}
-                  className={`link ${currentRoute === 'queue' ? 'active' : ''}`}
-                >
-                  {t('nav.queue')}
-                </button>
-                <button
-                  onClick={() => navigate('audit')}
-                  className={`link ${currentRoute === 'audit' ? 'active' : ''}`}
-                >
-                  {t('nav.audit')}
-                </button>
-
-                {user.role === 'administrator' && (
-                  <>
-                    <button
-                      onClick={() => navigate('admin-keys')}
-                      className={`link ${currentRoute === 'admin-keys' ? 'active' : ''}`}
-                    >
-                      {t('nav.admin_keys')}
-                    </button>
-                    <button
-                      onClick={() => navigate('admin-revoke')}
-                      className={`link ${currentRoute === 'admin-revoke' ? 'active' : ''}`}
-                    >
-                      {t('nav.admin_revoke')}
-                    </button>
-                    <button
-                      onClick={() => navigate('admin-issuers')}
-                      className={`link ${currentRoute === 'admin-issuers' ? 'active' : ''}`}
-                    >
-                      {t('nav.admin_issuers')}
-                    </button>
-                    <button
-                      onClick={() => navigate('sync')}
-                      className={`link ${currentRoute === 'sync' ? 'active' : ''}`}
-                    >
-                      {t('nav.sync')}
-                    </button>
-                  </>
-                )}
-
-                <button
-                  onClick={handleLogout}
-                  className="link"
-                  id="header-logout-btn"
-                >
-                  {t('nav.sign_out')}
-                </button>
-              </>
-            ) : (
-              <>
-                <a className="link" href="#for">
-                  {t('nav.who')}
-                </a>
-                <a className="link" href="#stats">
-                  {t('nav.how')}
-                </a>
-                <button
-                  onClick={() => navigate('test')}
-                  className={`link ${currentRoute === 'test' ? 'active' : ''}`}
-                >
-                  Tests
-                </button>
-                <button
-                  onClick={() => navigate('login')}
-                  className={`link ${currentRoute === 'login' ? 'active' : ''}`}
-                >
-                  {t('nav.sign_in')}
-                </button>
-              </>
-            )}
-
-            {/* Language Switcher */}
-            <button
-              id="lang-toggle-btn"
-              className="link lang-toggle-btn"
-              onClick={toggleLang}
-              aria-label="Switch language"
-              style={{ marginLeft: '6px' }}
-            >
-              {lang === 'en' ? 'አማርኛ' : 'English'}
-            </button>
-
-            {/* Check a document CTA */}
-            <button
-              onClick={() => navigate('verify')}
-              className="btn"
-              style={{ marginLeft: '10px', minHeight: '44px', padding: '0 18px', fontSize: '15px' }}
-            >
-              {t('nav.check_doc') || 'Check a document'}
-            </button>
-          </nav>
-
-          {/* Mobile Controls (< 768px) */}
-          <div className="header-mobile-controls" aria-label="Mobile Controls">
-            <button
-              id="lang-toggle-btn-mobile"
-              className="lang-toggle-btn"
-              onClick={toggleLang}
-              aria-label="Switch language"
-            >
-              {lang === 'en' ? 'አማርኛ' : 'EN'}
-            </button>
-
-            <button
-              onClick={onOpenMenu}
-              className="btn btn-secondary"
-              style={{ minHeight: '44px', minWidth: '44px', padding: '0 10px', borderRadius: '8px' }}
-              aria-label="Open navigation menu"
-              aria-haspopup="dialog"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" width="22" height="22">
-                <line x1="3" y1="12" x2="21" y2="12" />
-                <line x1="3" y1="6" x2="21" y2="6" />
-                <line x1="3" y1="18" x2="21" y2="18" />
-              </svg>
-            </button>
-          </div>
+          <button
+            className="icon-btn"
+            id="theme"
+            type="button"
+            onClick={toggleTheme}
+            aria-label={theme === 'dark' ? t('theme_light') : t('theme_dark')}
+          >
+            {theme === 'dark' ? ICON_SUN : ICON_MOON}
+          </button>
         </div>
-      </header>
-    </>
+      </div>
+    </header>
   );
 }
