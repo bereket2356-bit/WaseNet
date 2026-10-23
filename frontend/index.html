@@ -13,7 +13,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Newsreader:opsz,wght@6..72,500&family=Noto+Sans+Ethiopic:wght@400;700&family=Noto+Serif+Ethiopic:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script>
     try {
-      const savedLang = localStorage.getItem('wasenet_lang');
+      const savedTheme = localStorage.getItem('wn-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-theme', savedTheme);
+      const savedLang = localStorage.getItem('wn-lang') || localStorage.getItem('wasenet_lang');
       if (savedLang === 'am' || savedLang === 'en') {
         document.documentElement.lang = savedLang;
       }
