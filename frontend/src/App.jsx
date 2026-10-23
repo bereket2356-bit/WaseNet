@@ -8,7 +8,8 @@ import VerifyPage from './pages/VerifyPage.jsx';
 import ResultPage from './pages/ResultPage.jsx';
 import HowPage from './pages/HowPage.jsx';
 import IssuePage from './pages/IssuePage.jsx';
-import AdminPage from './pages/AdminPage.jsx';
+import ReportPage from './pages/ReportPage.jsx';
+import ContactPage from './pages/ContactPage.jsx';
 
 function parseHash() {
   const hash = window.location.hash.replace(/^#\/?/, '');
@@ -25,29 +26,21 @@ function parseHash() {
   let route = parts[0] || 'home';
   if (route === 'landing') route = 'home';
 
-  // Support legacy routes & subroute tabs
-  if (route === 'admin' && parts[1]) {
-    params.tab = parts[1];
-  } else if (route === 'queue') {
-    route = 'admin';
-    params.tab = 'queue';
-  } else if (route === 'audit') {
-    route = 'admin';
-    params.tab = 'audit';
-  } else if (route === 'admin-keys') {
-    route = 'admin';
-    params.tab = 'keys';
-  } else if (route === 'admin-revoke') {
-    route = 'admin';
-    params.tab = 'revoke';
-  } else if (route === 'admin-issuers') {
-    route = 'admin';
-    params.tab = 'issuers';
-  } else if (route === 'sync') {
-    route = 'admin';
-    params.tab = 'sync';
-  } else if (route === 'login' || route === 'issue-done') {
+  // Legacy route redirections following Admin relocation
+  if (route === 'admin' || route === 'queue' || route === 'sync' || route === 'admin-keys' || route === 'admin-revoke' || route === 'admin-issuers' || route === 'login' || route === 'issue-done') {
+    if (typeof window !== 'undefined' && window.location.hash && !window.location.hash.startsWith('#/issue')) {
+      try {
+        window.location.replace('#/issue');
+      } catch (e) {}
+    }
     route = 'issue';
+  } else if (route === 'audit') {
+    if (typeof window !== 'undefined' && window.location.hash && !window.location.hash.startsWith('#/verify')) {
+      try {
+        window.location.replace('#/verify');
+      } catch (e) {}
+    }
+    route = 'verify';
   }
 
   return { route, params };
@@ -83,14 +76,17 @@ function MainApp() {
 
   // Update document title to match reference
   useEffect(() => {
-    const navPage = route === 'result' ? 'verify' : route;
-    if (navPage === 'home') {
-      document.title = 'WaseNet';
-    } else {
-      const titleKey = 'nav_' + navPage;
-      document.title = `WaseNet · ${t(titleKey) || navPage}`;
-    }
-  }, [route, t]);
+    const titles = {
+      home: 'WaseNet',
+      verify: 'WaseNet · Scan a document',
+      result: 'WaseNet · Verification result',
+      how: 'WaseNet · How it works',
+      issue: 'WaseNet · Issue a document',
+      report: 'WaseNet · Report a fraud',
+      contact: 'WaseNet · Contact us'
+    };
+    document.title = titles[route] || 'WaseNet';
+  }, [route]);
 
   let PageComponent = LandingPage;
   switch (route) {
@@ -106,8 +102,11 @@ function MainApp() {
     case 'issue':
       PageComponent = IssuePage;
       break;
-    case 'admin':
-      PageComponent = AdminPage;
+    case 'report':
+      PageComponent = ReportPage;
+      break;
+    case 'contact':
+      PageComponent = ContactPage;
       break;
     case 'home':
     default:
