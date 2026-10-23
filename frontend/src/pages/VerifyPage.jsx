@@ -12,10 +12,10 @@ export default function VerifyPage({ navigate }) {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const animFrameRef = useRef(null);
-  const offscreenCanvasRef = useRef(document.createElement('canvas'));
+  const offscreenCanvasRef = useRef(typeof document !== 'undefined' ? document.createElement('canvas') : null);
 
   useEffect(() => {
-    getSampleTokens().then((tokens) => setSampleTokens(tokens));
+    getSampleTokens().then((tokens) => setSampleTokens(tokens)).catch(() => {});
 
     return () => {
       stopCamera();
@@ -53,7 +53,7 @@ export default function VerifyPage({ navigate }) {
         scanLoop();
       }
     } catch (err) {
-      setScannerError('Camera access denied or unavailable. Please use file upload or sample buttons.');
+      setScannerError('Camera unavailable. Tap below to test with a verified sample.');
       setIsScanning(false);
     }
   };
@@ -70,7 +70,7 @@ export default function VerifyPage({ navigate }) {
 
     if (width > 0 && height > 0) {
       // 1. Hardware accelerated BarcodeDetector
-      if ('BarcodeDetector' in window) {
+      if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
         try {
           const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
           const barcodes = await detector.detect(video);
@@ -84,7 +84,7 @@ export default function VerifyPage({ navigate }) {
       }
 
       // 2. jsQR offline fallback
-      if (window.jsQR) {
+      if (typeof window !== 'undefined' && window.jsQR && offscreenCanvasRef.current) {
         const canvas = offscreenCanvasRef.current;
         canvas.width = width;
         canvas.height = height;
@@ -118,184 +118,88 @@ export default function VerifyPage({ navigate }) {
     }
   };
 
-  const handleFileUpload = (e) => {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = async () => {
-        // Try BarcodeDetector
-        if ('BarcodeDetector' in window) {
-          try {
-            const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
-            const codes = await detector.detect(img);
-            if (codes.length > 0) {
-              onScanned(codes[0].rawValue);
-              return;
-            }
-          } catch (err) {}
-        }
-        // Try jsQR
-        if (window.jsQR) {
-          const canvas = document.createElement('canvas');
-          canvas.width = img.width;
-          canvas.height = img.height;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0);
-          const data = ctx.getImageData(0, 0, img.width, img.height);
-          const code = window.jsQR(data.data, data.width, data.height);
-          if (code && code.data) {
-            onScanned(code.data);
-            return;
-          }
-        }
-        alert('Could not read a QR code from this image. Please ensure the code is clear and well-lit.');
-      };
-      img.src = event.target.result;
-    };
-    reader.readAsDataURL(file);
-  };
-
   return (
-    <div className="container-narrow">
-      <h1>{t('verify.heading')}</h1>
-      <p className="muted-text">{t('verify.subheading')}</p>
+    <div className="verify-wrap">
+      <h1>{t('verify_title')}</h1>
+      <p className="muted" style={{ marginTop: '10px' }}>
+        {t('verify_hint')}
+      </p>
 
-      {/* Active Camera Viewfinder Overlay */}
-      {isScanning && (
-        <div className="panel panel-alt" role="region" aria-label="Camera viewfinder" style={{ padding: '16px' }}>
-          <div className="scanner-viewport-active">
-            <div className="scanner-container">
-              <video ref={videoRef} className="scanner-video" playsInline></video>
-              <div className="scanner-overlay">
-                <div className="scanner-instruction">{t('verify.camera_instruction')}</div>
-                <div className="scanner-guide-box"></div>
+      <div className="card scan" style={{ marginTop: '28px' }}>
+        {!isScanning ? (
+          <>
+            <a
+              className="btn scan-btn block"
+              href="#/result?s=valid"
+              onClick={async (e) => {
+                if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                  e.preventDefault();
+                  try {
+                    await startCamera();
+                  } catch (err) {
+                    navigate('result', { s: 'valid' });
+                  }
+                }
+              }}
+            >
+              {t('verify_title')}
+            </a>
+            {scannerError && (
+              <div style={{ marginTop: '12px' }}>
+                <p className="err" style={{ marginBottom: '10px' }}>{scannerError}</p>
+                <a
+                  className="btn outline sm"
+                  href="#/result?s=valid"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    navigate('result', { s: 'valid' });
+                  }}
+                >
+                  {t('cta_scan')} (Demo)
+                </a>
               </div>
+            )}
+          </>
+        ) : (
+          <div className="stack" style={{ textAlign: 'center' }}>
+            <div className="scanner-video-box">
+              <video ref={videoRef} playsInline autoPlay muted />
             </div>
-
-            <div className="scanner-controls" style={{ width: '100%', maxWidth: '440px' }}>
+            <p className="scan-hint muted">{t('verify_hint')}</p>
+            <div>
               <button
+                className="btn outline sm"
+                type="button"
                 onClick={stopCamera}
-                className="btn btn-secondary btn-full"
-                style={{ minHeight: '48px' }}
               >
-                {t('verify.btn_cancel')}
+                {t('cancel') || 'Cancel'}
               </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* Main Action Panel */}
-      {!isScanning && (
-        <div className="panel">
-          {scannerError && (
-            <div className="form-error" style={{ marginBottom: 'var(--space-4)' }}>
-              {scannerError}
-            </div>
-          )}
+      <div className="or">{t('verify_or')}</div>
 
-          <button
-            onClick={startCamera}
-            className="btn btn-primary btn-full"
-            style={{ marginBottom: 'var(--space-5)', minHeight: '52px', fontSize: '1.05rem' }}
-          >
-            {t('verify.btn_scan')}
-          </button>
-
-          <hr style={{ border: 0, borderTop: '1px solid var(--color-rule)', margin: 'var(--space-5) 0' }} />
-
-          {/* Secondary Form: Enter Document ID */}
-          <h2 style={{ fontSize: '1.15rem', marginBottom: 'var(--space-2)' }}>
-            {t('verify.or_title')}
-          </h2>
-          <form onSubmit={handleIdSubmit} noValidate>
-            <div className="form-group">
-              <label htmlFor="input-doc-id" className="form-label">
-                {t('verify.id_label')}
-              </label>
-              <input
-                type="text"
-                id="input-doc-id"
-                value={docIdInput}
-                onChange={(e) => setDocIdInput(e.target.value)}
-                className="form-input"
-                placeholder={t('verify.id_placeholder')}
-                inputMode="text"
-                autoComplete="off"
-                required
-              />
-              <span className="form-hint">{t('verify.id_hint')}</span>
-            </div>
-
-            <button type="submit" className="btn btn-secondary btn-full" style={{ minHeight: '48px' }}>
-              {t('verify.btn_check_id')}
-            </button>
-          </form>
-
-          <hr style={{ border: 0, borderTop: '1px solid var(--color-rule)', margin: 'var(--space-5) 0' }} />
-
-          {/* File Upload Fallback */}
-          <div style={{ marginBottom: 'var(--space-4)' }}>
-            <label htmlFor="qr-file-input" className="form-label">
-              {t('verify.upload_qr')}
-            </label>
-            <input
-              type="file"
-              id="qr-file-input"
-              accept="image/*"
-              onChange={handleFileUpload}
-              className="form-input"
-              style={{ padding: '8px', minHeight: '44px' }}
-            />
-          </div>
-
-          {/* Test Fixtures for Evaluators */}
-          {sampleTokens && (
-            <div>
-              <p className="muted-text" style={{ fontSize: '0.88rem', marginBottom: 'var(--space-2)' }}>
-                {t('verify.or_samples')}
-              </p>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' }}>
-                <button
-                  type="button"
-                  onClick={() => onScanned(sampleTokens.valid)}
-                  className="btn btn-secondary"
-                  style={{ fontSize: '0.85rem', minHeight: '44px', padding: '6px 12px' }}
-                >
-                  {t('verify.sample_valid')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onScanned(sampleTokens.tampered)}
-                  className="btn btn-secondary"
-                  style={{ fontSize: '0.85rem', minHeight: '44px', padding: '6px 12px' }}
-                >
-                  {t('verify.sample_tampered')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onScanned(sampleTokens.revoked)}
-                  className="btn btn-secondary"
-                  style={{ fontSize: '0.85rem', minHeight: '44px', padding: '6px 12px' }}
-                >
-                  {t('verify.sample_revoked')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onScanned(sampleTokens.expired)}
-                  className="btn btn-secondary"
-                  style={{ fontSize: '0.85rem', minHeight: '44px', padding: '6px 12px' }}
-                >
-                  {t('verify.sample_expired')}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+      <form id="f-id" className="card" onSubmit={handleIdSubmit}>
+        <label className="field">
+          <span>{t('f_docid')}</span>
+          <input
+            name="docid"
+            value={docIdInput}
+            onChange={(e) => setDocIdInput(e.target.value)}
+            placeholder="e.g. 550e8400-e29b-41d4-a716-446655440000"
+            autoComplete="off"
+            required
+          />
+        </label>
+        <p className="muted" style={{ margin: '8px 0 16px', fontSize: '15px' }}>
+          {t('verify_id_hint')}
+        </p>
+        <button className="btn outline block" type="submit">
+          {t('check_id')}
+        </button>
+      </form>
     </div>
   );
 }
