@@ -15,15 +15,8 @@ const ICON_SUN = (
   </svg>
 );
 
-const ICON_GLOBE = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true" width="20" height="20">
-    <circle cx="12" cy="12" r="9" />
-    <path d="M3 12h18M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18" />
-  </svg>
-);
-
 export default function Header({ currentRoute, navigate }) {
-  const { t, lang, toggleLang, theme, toggleTheme } = useI18n();
+  const { theme, toggleTheme } = useI18n();
   const [user, setUser] = useState(getCurrentUser());
 
   useEffect(() => {
@@ -45,22 +38,10 @@ export default function Header({ currentRoute, navigate }) {
     navigate('home');
   };
 
-  // Determine active nav section
   const getNavPage = () => {
     if (currentRoute === 'verify' || currentRoute === 'result') return 'verify';
     if (currentRoute === 'how') return 'how';
     if (currentRoute === 'issue' || currentRoute === 'issue-done') return 'issue';
-    if (
-      currentRoute === 'admin' ||
-      currentRoute === 'queue' ||
-      currentRoute === 'audit' ||
-      currentRoute === 'admin-keys' ||
-      currentRoute === 'admin-revoke' ||
-      currentRoute === 'admin-issuers' ||
-      currentRoute === 'sync'
-    ) {
-      return 'admin';
-    }
     return '';
   };
 
@@ -78,7 +59,7 @@ export default function Header({ currentRoute, navigate }) {
           className="brand"
           aria-label="WaseNet Home"
         >
-          {t('brand.name') || 'WaseNet'}
+          WaseNet
         </a>
 
         <nav id="nav" aria-label="Main">
@@ -91,7 +72,7 @@ export default function Header({ currentRoute, navigate }) {
             className="nav-link"
             aria-current={navPage === 'verify' ? 'page' : undefined}
           >
-            {t('nav_verify')}
+            Verify
           </a>
           <a
             href="#/how"
@@ -102,7 +83,7 @@ export default function Header({ currentRoute, navigate }) {
             className="nav-link"
             aria-current={navPage === 'how' ? 'page' : undefined}
           >
-            {t('nav_how')}
+            How it works
           </a>
           <a
             href="#/issue"
@@ -113,22 +94,23 @@ export default function Header({ currentRoute, navigate }) {
             className="nav-link"
             aria-current={navPage === 'issue' ? 'page' : undefined}
           >
-            {t('nav_issue')}
-          </a>
-          <a
-            href="#/admin"
-            onClick={(e) => {
-              e.preventDefault();
-              navigate('admin');
-            }}
-            className="nav-link"
-            aria-current={navPage === 'admin' ? 'page' : undefined}
-          >
-            {t('nav_admin')}
+            Issue
           </a>
         </nav>
 
         <div className="tools" id="tools">
+          <a
+            href="#/report"
+            className="header-report-btn"
+            id="header-report-btn"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate('report');
+            }}
+          >
+            Report a fraud
+          </a>
+
           {user && (
             <button
               className="text-btn"
@@ -136,27 +118,16 @@ export default function Header({ currentRoute, navigate }) {
               id="header-logout-btn"
               onClick={handleLogout}
             >
-              {t('sign_out')}
+              Sign out
             </button>
           )}
-
-          <button
-            className="icon-btn"
-            id="lang"
-            type="button"
-            onClick={toggleLang}
-            aria-label={t('lang_switch')}
-          >
-            {ICON_GLOBE}
-            <span>{lang === 'en' ? 'አማርኛ' : 'EN'}</span>
-          </button>
 
           <button
             className="icon-btn"
             id="theme"
             type="button"
             onClick={toggleTheme}
-            aria-label={theme === 'dark' ? t('theme_light') : t('theme_dark')}
+            aria-label={theme === 'dark' ? 'Light mode' : 'Dark mode'}
           >
             {theme === 'dark' ? ICON_SUN : ICON_MOON}
           </button>
