@@ -1,26 +1,58 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useI18n } from '../i18n.jsx';
 import { getSampleTokens } from '../sample-docs.js';
+import { getCurrentUser } from '../auth.js';
+import { auditStore } from '../storage.js';
 
 export default function VerifyPage({ navigate }) {
-  const { t } = useI18n();
   const [isScanning, setIsScanning] = useState(false);
   const [docIdInput, setDocIdInput] = useState('');
   const [sampleTokens, setSampleTokens] = useState(null);
   const [scannerError, setScannerError] = useState(null);
+
+  const [user, setUser] = useState(getCurrentUser());
+  const [recentChecks, setRecentChecks] = useState([]);
+  const [auditFilter, setAuditFilter] = useState('all');
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const animFrameRef = useRef(null);
   const offscreenCanvasRef = useRef(typeof document !== 'undefined' ? document.createElement('canvas') : null);
 
+  const loadAudit = async (f = auditFilter) => {
+    try {
+      const list = await auditStore.getRecords(f === 'all' ? 'All' : f);
+      setRecentChecks(list || []);
+    } catch (e) {}
+  };
+
   useEffect(() => {
     getSampleTokens().then((tokens) => setSampleTokens(tokens)).catch(() => {});
 
+    const handleAuthChange = () => {
+      const u = getCurrentUser();
+      setUser(u);
+      if (u) loadAudit();
+    };
+
+    window.addEventListener('authchange', handleAuthChange);
+    window.addEventListener('storage', handleAuthChange);
+
+    if (user) {
+      loadAudit(auditFilter);
+    }
+
     return () => {
+      window.removeEventListener('authchange', handleAuthChange);
+      window.removeEventListener('storage', handleAuthChange);
       stopCamera();
     };
   }, []);
+
+  useEffect(() => {
+    if (user) {
+      loadAudit(auditFilter);
+    }
+  }, [auditFilter, user]);
 
   const stopCamera = () => {
     if (animFrameRef.current) {
@@ -65,49 +97,28 @@ export default function VerifyPage({ navigate }) {
       return;
     }
 
-    const width = video.videoWidth;
-    const height = video.videoHeight;
+    const canvas = offscreenCanvasRef.current;
+    if (canvas) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
-    if (width > 0 && height > 0) {
-      // 1. Hardware accelerated BarcodeDetector
-      if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
-        try {
-          const detector = new window.BarcodeDetector({ formats: ['qr_code'] });
-          const barcodes = await detector.detect(video);
-          if (barcodes.length > 0) {
-            const raw = barcodes[0].rawValue;
-            stopCamera();
-            onScanned(raw);
-            return;
-          }
-        } catch (e) {}
-      }
-
-      // 2. jsQR offline fallback
-      if (typeof window !== 'undefined' && window.jsQR && offscreenCanvasRef.current) {
-        const canvas = offscreenCanvasRef.current;
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        ctx.drawImage(video, 0, 0, width, height);
-        const imgData = ctx.getImageData(0, 0, width, height);
-        const code = window.jsQR(imgData.data, imgData.width, imgData.height, {
+      if (window.jsQR) {
+        const code = window.jsQR(imageData.data, imageData.width, imageData.height, {
           inversionAttempts: 'dontInvert'
         });
         if (code && code.data) {
           stopCamera();
-          onScanned(code.data);
+          sessionStorage.setItem('wase_verify_jws', code.data);
+          navigate('result', { jws: code.data });
           return;
         }
       }
     }
 
     animFrameRef.current = requestAnimationFrame(scanLoop);
-  };
-
-  const onScanned = (tokenOrId) => {
-    sessionStorage.setItem('wase_verify_jws', tokenOrId);
-    navigate('result', { jws: tokenOrId });
   };
 
   const handleIdSubmit = (e) => {
@@ -120,12 +131,14 @@ export default function VerifyPage({ navigate }) {
 
   return (
     <div className="verify-wrap">
-      <h1>{t('verify_title')}</h1>
-      <p className="muted" style={{ marginTop: '10px' }}>
-        {t('verify_hint')}
-      </p>
+      <header className="page-intro">
+        <h1>Scan a document</h1>
+        <p className="intro">
+          Hold the QR code inside the frame.
+        </p>
+      </header>
 
-      <div className="card scan" style={{ marginTop: '28px' }}>
+      <div className="card scan" style={{ marginTop: '0px' }}>
         {!isScanning ? (
           <>
             <a
@@ -142,7 +155,7 @@ export default function VerifyPage({ navigate }) {
                 }
               }}
             >
-              {t('verify_title')}
+              Scan a document
             </a>
             {scannerError && (
               <div style={{ marginTop: '12px' }}>
@@ -155,7 +168,7 @@ export default function VerifyPage({ navigate }) {
                     navigate('result', { s: 'valid' });
                   }}
                 >
-                  {t('cta_scan')} (Demo)
+                  Scan a document (Demo)
                 </a>
               </div>
             )}
@@ -165,25 +178,25 @@ export default function VerifyPage({ navigate }) {
             <div className="scanner-video-box">
               <video ref={videoRef} playsInline autoPlay muted />
             </div>
-            <p className="scan-hint muted">{t('verify_hint')}</p>
+            <p className="scan-hint muted">Hold the QR code inside the frame.</p>
             <div>
               <button
                 className="btn outline sm"
                 type="button"
                 onClick={stopCamera}
               >
-                {t('cancel') || 'Cancel'}
+                Cancel
               </button>
             </div>
           </div>
         )}
       </div>
 
-      <div className="or">{t('verify_or')}</div>
+      <div className="or">or enter a document ID</div>
 
       <form id="f-id" className="card" onSubmit={handleIdSubmit}>
         <label className="field">
-          <span>{t('f_docid')}</span>
+          <span>Document ID</span>
           <input
             name="docid"
             value={docIdInput}
@@ -194,12 +207,68 @@ export default function VerifyPage({ navigate }) {
           />
         </label>
         <p className="muted" style={{ margin: '8px 0 16px', fontSize: '15px' }}>
-          {t('verify_id_hint')}
+          Checking revocation needs a connection.
         </p>
         <button className="btn outline block" type="submit">
-          {t('check_id')}
+          Check this ID
         </button>
       </form>
+
+      {user && (
+        <section className="card" style={{ marginTop: '36px' }}>
+          <div className="toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+            <h2 style={{ fontSize: '1.4rem' }}>Recent checks</h2>
+            <label className="field" style={{ margin: 0, minWidth: '180px' }}>
+              <span className="muted" style={{ fontSize: '14px', fontWeight: 700 }}>
+                Filter by result
+              </span>
+              <select
+                id="filter"
+                value={auditFilter}
+                onChange={(e) => setAuditFilter(e.target.value)}
+              >
+                <option value="all">All</option>
+                <option value="valid">Valid</option>
+                <option value="tampered">Tampered</option>
+                <option value="revoked">Revoked</option>
+                <option value="expired">Expired</option>
+              </select>
+            </label>
+          </div>
+          {recentChecks.length > 0 ? (
+            <div className="tbl-wrap">
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>Document ID</th>
+                    <th>Time</th>
+                    <th>Result</th>
+                    <th>Device</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentChecks.slice(0, 10).map((a, idx) => (
+                    <tr key={idx}>
+                      <td style={{ wordBreak: 'break-all' }}>{a.doc_id || a.id}</td>
+                      <td>{a.timestamp ? new Date(a.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (a.time || '—')}</td>
+                      <td>
+                        <span className={`pill ${a.result === 'VALID' ? 'p-ok' : a.result === 'TAMPERED' || a.result === 'REVOKED' ? 'p-bad' : 'p-warn'}`}>
+                          {a.result}
+                        </span>
+                      </td>
+                      <td>{a.deviceId || a.device || 'wase-dev-01'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="empty muted" style={{ textAlign: 'center', padding: '16px' }}>
+              No verifications recorded on this device yet.
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }
