@@ -85,7 +85,6 @@ export async function login(username, password) {
 
 export function logout() {
   clearSession();
-  window.location.href = 'login.html';
 }
 
 /**
