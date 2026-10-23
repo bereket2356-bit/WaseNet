@@ -31,6 +31,7 @@ async function main() {
     `--user-data-dir=${tmpProfile}`,
     '--no-first-run',
     '--no-default-browser-check',
+    '--disable-extensions',
     'about:blank'
   ]);
 
@@ -39,7 +40,8 @@ async function main() {
   try {
     const listRes = await fetch(`http://127.0.0.1:${PORT}/json/list`);
     const pages = await listRes.json();
-    const ws = new WebSocket(pages[0].webSocketDebuggerUrl);
+    const targetPage = pages.find(p => p.type === 'page' && !p.url.startsWith('chrome-extension')) || pages[0];
+    const ws = new WebSocket(targetPage.webSocketDebuggerUrl);
     await new Promise(r => ws.onopen = r);
 
     let id = 1;
@@ -103,14 +105,19 @@ async function main() {
     // 2. Load Valid Result in Amharic
     console.log('Generating valid credential and loading Result page...');
     const bannerInfo = await evalExpr(send, `(async () => {
-      const { getSampleTokens } = await import('/src/sample-docs.js');
-      const tokens = await getSampleTokens();
-      sessionStorage.setItem('wase_verify_jws', tokens.valid);
-      window.location.hash = '#/result?jws=' + encodeURIComponent(tokens.valid);
-      return { loaded: true };
+      try {
+        const { getSampleTokens } = await import('/src/sample-docs.js');
+        const tokens = await getSampleTokens();
+        if (!tokens || !tokens.valid) return { error: 'tokens null or invalid', tokens };
+        sessionStorage.setItem('wase_verify_jws', tokens.valid);
+        window.location.hash = '#/result?jws=' + encodeURIComponent(tokens.valid);
+        return { loaded: true, tokenPrefix: tokens.valid.slice(0, 20) };
+      } catch (err) {
+        return { error: err.message, stack: err.stack };
+      }
     })()`);
     console.log('Loaded token into sessionStorage:', bannerInfo);
-    await sleep(1500);
+    await sleep(2000);
 
     const bannerCheck = await evalExpr(send, `(() => {
       const title = document.querySelector('.banner-title');
@@ -130,6 +137,13 @@ async function main() {
     const ssResult = await send('Page.captureScreenshot', { format: 'png' });
     fs.writeFileSync(path.join(ARTIFACT_DIR, 'amharic-scanner-result-banner.png'), Buffer.from(ssResult.data, 'base64'));
     console.log('Saved amharic-scanner-result-banner.png');
+
+    // 3. Capture Issuer Form
+    await send('Page.navigate', { url: `${BASE_URL}/#/issue` });
+    await sleep(1000);
+    const ssIssue = await send('Page.captureScreenshot', { format: 'png' });
+    fs.writeFileSync(path.join(ARTIFACT_DIR, 'amharic-issuer-form-authenticated.png'), Buffer.from(ssIssue.data, 'base64'));
+    console.log('Saved amharic-issuer-form-authenticated.png');
 
     ws.close();
   } finally {
