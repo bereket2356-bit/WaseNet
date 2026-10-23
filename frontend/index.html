@@ -3,22 +3,18 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>WaseNet · Check a document in one scan</title>
+  <title>WaseNet</title>
   <meta name="description" content="Official hybrid offline/online document authentication system for Ethiopian public registries." />
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
   <meta name="theme-color" content="#1E2B30" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Newsreader:opsz,wght@6..72,500&family=Noto+Sans+Ethiopic:wght@400;700&family=Noto+Serif+Ethiopic:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Newsreader:opsz,wght@6..72,500&display=swap" rel="stylesheet">
   <script>
     try {
       const savedTheme = localStorage.getItem('wn-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
       document.documentElement.setAttribute('data-theme', savedTheme);
-      const savedLang = localStorage.getItem('wn-lang') || localStorage.getItem('wasenet_lang');
-      if (savedLang === 'am' || savedLang === 'en') {
-        document.documentElement.lang = savedLang;
-      }
     } catch (e) {}
   </script>
   <!-- Pinned local pure-js QR decoder for 100% offline fallback -->
