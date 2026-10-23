@@ -1,230 +1,330 @@
-# WaseNet — Hybrid Online/Offline Document Authentication System
+# WaseNet
 
-WaseNet is a hybrid online/offline document authentication system built for public registries in Ethiopia (land administration certificates, cooperative credentials, vital statistics, and local commercial permits). It enables instant cryptographic validation on entry-level Android smartphones over 2G/3G connections and continues operating completely offline once loaded.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-1.1-blue.svg)](CHANGELOG.md)
+
+**Offline-first document authentication for public-sector credentials.**
+
+WaseNet lets authorized institutions issue digitally signed credentials as QR codes, and lets anyone verify them in the field without a network connection.
 
 ---
 
-## Deliverables & Architecture Overview
+## Overview
 
-### 1. Project File Tree
+Many public-sector offices in Ethiopia, such as land registries, cooperatives, vital statistics offices, and local administration units, issue paper documents that are easy to forge. Verifying them usually means calling the issuing office, which is slow, and often impossible in rural areas with poor connectivity.
 
+WaseNet addresses this by embedding a cryptographic signature in a QR code printed on each document. The issuing server signs the document data with a private key. A verifier scans the code with a phone, and the app checks the signature against a public key stored on the device. The check works offline.
+
+The verifier app is a Progressive Web App (PWA). It syncs trusted public keys and the Document Revocation List (DRL) whenever it has a connection, so it can operate for extended periods without one.
+
+WaseNet is an MVP developed as part of the INSA Phase-Two capstone project.
+
+---
+
+## Key Features
+
+- **Credential issuance.** A web form captures document metadata. The data is canonicalized, hashed with SHA-256, signed with ECDSA P-256 (or RSA-2048), and rendered as a Level M QR code.
+- **Offline verification.** The PWA scans QR codes with the device camera and verifies signatures locally using `crypto.subtle.verify`.
+- **Clear verification results.** Each scan returns one of four states: `VALID`, `TAMPERED/INVALID`, `REVOKED`, or `EXPIRED`.
+- **Trust synchronization.** When online, the app downloads the public key bundle and delta updates to the revocation list.
+- **Admin panel.** Administrators manage signing keys, key status, and document revocations with standardized reason codes.
+- **Audit logging.** Every verification is logged locally and uploaded in batches when connectivity returns.
+- **Offline issuance queue.** Issuers can queue credentials while offline. They sync automatically once the connection is restored.
+- **Bilingual interface.** English and Amharic, switchable at runtime.
+
+---
+
+## How It Works
+
+### Issuance
+
+1. An authorized official enters document details in the issuance form.
+2. The server converts the data into a deterministic JSON string and computes its SHA-256 hash.
+3. The server signs the hash with the issuer's private key.
+4. The header, payload, and signature are combined into a JWS Compact Serialization string:
+
+   ```text
+   [Header].[Payload].[Signature]
+   ```
+
+5. The string is rendered as a QR code and printed on the document.
+
+### Verification
+
+1. The verifier opens the app and scans the QR code.
+2. The app reads the `key_id` from the JWS header and looks up the matching public key in IndexedDB.
+3. The app verifies the signature locally against the payload.
+4. The app checks the document ID against the local revocation list and compares the expiry date with the current time.
+5. The app shows one result:
+
+| Result | Meaning |
+|---|---|
+| `VALID` | Signature is authentic, the document is not revoked, and it has not expired. |
+| `TAMPERED/INVALID` | The signature does not match the payload. The document may be forged or altered. |
+| `REVOKED` | The signature is authentic, but the document appears on the revocation list. |
+| `EXPIRED` | The signature is authentic, but the document is past its expiry date. |
+
+6. The result is logged locally and queued for upload.
+
+---
+
+## Architecture
+
+```text
+ ONLINE                                          
+ ┌──────────────────┐   HTTPS   ┌────────────────┐   ┌────────────────┐
+ │  Issuer Web App  │ ────────► │  Backend API   │ ─►│   Database     │
+ │  (admin, issue)  │           │ (FastAPI)      │   │ (PostgreSQL /  │
+ └──────────────────┘           └───────┬────────┘   │    SQLite)     │
+                                        │            └────────────────┘
+ ───────────────────────────────────────┼─────────────────────────────────
+ OFFLINE BOUNDARY                       │  Sync when online:
+                                        │  - Public key bundle
+                                        │  - DRL delta updates
+                                        │  - Audit log batches
+ ───────────────────────────────────────┼─────────────────────────────────
+ OFFLINE                                ▼                                  
+ ┌───────────────────────────────────────────────────────────────────────┐
+ │  Verifier PWA (mobile browser)                                        │
+ │                                                                       │
+ │  Camera scanner ─► Web Crypto API ◄─► IndexedDB                       │
+ │                                       - Public key bundle             │
+ │                                       - Revocation list               │
+ │                                       - Audit log queue               │
+ │                                       - Issuance queue                │
+ └───────────────────────────────────────────────────────────────────────┘
 ```
-WaseNet/
-├── frontend/
-│   ├── public/
-│   │   ├── icons/
-│   │   │   ├── icon.svg                     # High-res official emblem SVG
-│   │   │   ├── icon-192.png                 # PWA standard app icon
-│   │   │   └── icon-512.png                 # PWA splash/install icon
-│   │   ├── lib/
-│   │   │   └── jsqr.js                      # Pinned pure JS QR decoder (100% offline)
-│   │   ├── manifest.webmanifest             # Progressive Web App manifest
-│   │   └── sw.js                            # Service Worker (App shell caching)
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── Header.jsx                   # Official registry header, sync bar, lang switcher
-│   │   │   └── Footer.jsx                   # Archival registry footer
-│   │   ├── pages/
-│   │   │   ├── LandingPage.jsx              # Page 1: Public front door (/)
-│   │   │   ├── VerifyPage.jsx               # Page 2: Camera & manual verification (/verify)
-│   │   │   ├── ResultPage.jsx               # Page 3: 4-state result banner & details (/verify/result)
-│   │   │   ├── LoginPage.jsx                # Page 4: 8-hr JWT sign-in (/login)
-│   │   │   ├── IssuePage.jsx                # Page 5: Deterministic credential creation (/issue)
-│   │   │   ├── IssueDonePage.jsx            # Page 6: Level M QR & print/save (/issue/done)
-│   │   │   ├── QueuePage.jsx                # Page 7: Offline issuance queue (/queue)
-│   │   │   ├── AuditPage.jsx                # Page 8: Device verification audit log (/audit)
-│   │   │   ├── AdminKeysPage.jsx            # Page 9: Public keys management (/admin/keys)
-│   │   │   ├── AdminRevokePage.jsx          # Page 10: Revoke a document & DRL (/admin/revoke)
-│   │   │   ├── AdminIssuersPage.jsx         # Page 11: Issuing offices directory (/admin/issuers)
-│   │   │   ├── SyncPage.jsx                 # Page 12: Registry sync status & trigger (/sync)
-│   │   │   └── TestPage.jsx                 # Interactive in-browser unit test runner (/test)
-│   │   ├── crypto.js                        # Canonical JSON (RFC 8785), SHA-256, ES256 JWS
-│   │   ├── storage.js                       # IndexedDB transaction-safe stores
-│   │   ├── signing-provider.js              # Decoupled SigningProvider interface
-│   │   ├── auth.js                          # 8-hr JWT session, RBAC, unsaved form preservation
-│   │   ├── sync.js                          # Sync engine with exponential backoff
-│   │   ├── qr-generator.js                  # Standalone pure JS Level M QR code generator
-│   │   ├── sample-docs.js                   # Seed certificates (Valid, Tampered, Revoked, Expired)
-│   │   ├── i18n.jsx                         # English & Amharic reactive context hook
-│   │   ├── i18n-dictionary.js               # Complete English & Amharic localized dictionary
-│   │   ├── index.css                        # Visual system (Newsreader, Atkinson Hyperlegible, palette)
-│   │   ├── App.jsx                          # Router container & navigation state
-│   │   └── main.jsx                         # React entry point
-│   ├── index.html                           # Vite entry HTML
-│   ├── package.json                         # React 19 & Vite 8
-│   └── vite.config.js                       # Development proxy to backend
-├── backend/
-│   ├── data/
-│   │   └── server_es256.json                # Server-held ECDSA P-256 keypair
-│   ├── server.js                            # Native Node.js REST API & ES256 signing service
-│   └── package.json
-├── tests/
-│   ├── crypto.test.js                       # Node unit test: Canonicalization, SHA-256, JWS
-│   └── verify-logic.test.js                 # Node unit test: 4-state logic & tamper rules
+
+Verification never leaves the device. The backend is needed only for issuance, administration, and synchronization.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Client | HTML5, CSS3, vanilla JavaScript |
+| Offline support | Service Workers, IndexedDB |
+| Cryptography | Web Crypto API (client), Python `cryptography` library (server) |
+| Backend | Python 3.10+, FastAPI |
+| Database | SQLite (development), PostgreSQL 14+ (production) |
+| Transport | HTTPS with TLS 1.3 |
+
+---
+
+## Project Structure
+
+```text
+wasenet/
+├── client/                    # Verifier PWA
+│   ├── index.html
+│   ├── manifest.json
+│   ├── service-worker.js
+│   ├── css/
+│   └── js/
+│       ├── app.js             # UI controller and navigation
+│       ├── crypto.js          # Signature verification
+│       ├── db.js              # IndexedDB access layer
+│       ├── qr-scanner.js      # Camera and QR decoding
+│       └── i18n.js            # English and Amharic strings
+├── server/                    # Backend API
+│   ├── app/
+│   │   ├── api/               # Route handlers (auth, credentials, sync)
+│   │   ├── core/              # Cryptography and configuration
+│   │   ├── models/            # Database models
+│   │   └── services/          # Issuance and revocation logic
+│   ├── keys/                  # Private signing keys (gitignored)
+│   ├── migrations/            # Database migrations
+│   └── requirements.txt
+├── scripts/
+│   └── generate_keys.py       # Key pair generator
+├── docs/                      # Architecture and threat model
+├── .env.example
+├── .gitignore
+├── LICENSE
 └── README.md
 ```
 
+> **Note:** Private keys must never be committed to version control or shipped to client devices. The `server/keys/` directory is excluded by `.gitignore`. Only public key bundles are distributed to the PWA.
+
 ---
 
-## 2. Local Run Instructions
+## Getting Started
 
 ### Prerequisites
-- Node.js v18+ (tested on Node v24)
-- npm
 
-### Step 1: Start Backend API Server
-In a terminal, navigate to the `backend` directory and run:
+- Python 3.10 or later
+- PostgreSQL 14+ (optional; SQLite is used by default in development)
+- OpenSSL
+- A modern browser with camera access (Chrome, Chromium, or Firefox)
+
+### Installation
+
+1. Clone the repository and enter the project directory:
+
+   ```bash
+   git clone https://github.com/your-org/wasenet.git
+   cd wasenet
+   ```
+
+2. Create your environment file:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+   Open `.env` and set at least `JWT_SECRET` and `DATABASE_URL`. See [Configuration](#configuration).
+
+3. Create a virtual environment and install dependencies:
+
+   ```bash
+   python -m venv venv
+   source venv/bin/activate        # On Windows: .\venv\Scripts\activate
+   pip install -r server/requirements.txt
+   ```
+
+4. Apply database migrations:
+
+   ```bash
+   alembic -c server/alembic.ini upgrade head
+   ```
+
+5. Generate a signing key pair:
+
+   ```bash
+   python scripts/generate_keys.py --alg ES256 --out-dir ./server/keys/
+   ```
+
+   This creates a private key, which stays on the server, and a public key, which is added to the trust bundle.
+
+6. Start the server:
+
+   ```bash
+   uvicorn server.app.main:app --host 127.0.0.1 --port 8000 --reload
+   ```
+
+### Running the PWA Locally
+
+Browsers only allow camera access and Service Workers in a secure context. `localhost` counts as secure, so the app works on your own machine without extra setup.
+
+To test on a physical Android device over your local network, serve the app over HTTPS. For example, using a local certificate:
+
 ```bash
-cd backend
-npm start
+npx local-ssl-proxy --source 8443 --target 8000 --cert cert.pem --key key.pem
 ```
-The server starts at `http://localhost:5000`. It initializes an ECDSA P-256 keypair and serves:
-- Authentication (`/api/auth/login`) with 8-hour JWT sessions
-- Public Key Certificate Bundle (`/api/keys/bundle`)
-- Document Revocation List delta sync (`/api/revocation-list`)
-- Server-side ES256 Signing (`/api/issue/sign`)
-- Idempotent offline queue sync (`/api/issue/sync`)
-- Idempotent audit batch upload (`/api/audit/batch`)
-- Live document verification (`/api/verify/:id`)
 
-### Step 2: Start Frontend Development Server
-In another terminal, navigate to the `frontend` directory and run:
-```bash
-cd frontend
-npm run dev
-```
-Open `http://localhost:5173` in your browser.
-
-### Demo User Accounts
-- **Issuing Officer**: `issuer` / `issuer123` (Access to Issue, Queue, Audit)
-- **Administrator**: `admin` / `admin123` (Access to Issue, Queue, Audit, Keys, Revoke, Issuers, Sync)
+Then open `https://<your-machine-ip>:8443` on the device.
 
 ---
 
-## 3. Serving over HTTPS for Camera Access
+## Usage
 
-Browsers require a **Secure Context (HTTPS or localhost)** to allow access to `navigator.mediaDevices.getUserMedia`. When accessing WaseNet from an Android phone or another device across the local network:
+### Issuing a Credential
 
-### Option A: Localhost Tunneling (Recommended for Field Devices)
-Use a secure tunnel such as Cloudflare Tunnel or localtunnel:
-```bash
-npx localtunnel --port 5173
-```
-Open the generated `https://*.loca.lt` URL on the Android phone.
+1. Open the issuer dashboard at `https://localhost:8443/issuer` (or your configured host).
+2. Sign in with an issuer account.
+3. Fill in the document details: document type, holder name, holder ID, issuer code, issue date, and expiry date.
+4. Select **Issue Credential**.
+   - When online, the server signs the credential and returns the QR code.
+   - When offline, the credential is stored in the issuance queue and signed once the connection returns.
+5. Print or download the QR code and attach it to the document.
 
-### Option B: Vite HTTPS Dev Server
-Install the Vite basic SSL plugin:
-```bash
-cd frontend
-npm install @vitejs/plugin-basic-ssl --save-dev
-```
-Add `basicSsl()` to `vite.config.js`:
-```javascript
-import react from '@vitejs/plugin-react';
-import basicSsl from '@vitejs/plugin-basic-ssl';
-import { defineConfig } from 'vite';
+### Verifying a Credential Offline
 
-export default defineConfig({
-  plugins: [react(), basicSsl()],
-  server: {
-    host: '0.0.0.0',
-    port: 5173,
-    proxy: { '/api': { target: 'http://localhost:5000', changeOrigin: true } }
-  }
-});
-```
-Then run `npm run dev -- --host` and access `https://<YOUR_IP>:5173`. Accept the self-signed certificate warning on your mobile device.
+1. Open the verifier app on a device that has completed at least one sync while online.
+2. Turn on Airplane Mode to confirm that verification works without a connection.
+3. Select **Scan** and point the camera at the QR code.
+4. Read the result banner:
+   - Green: `VALID`
+   - Red: `TAMPERED/INVALID` or `REVOKED`
+   - Orange: `EXPIRED`
 
 ---
 
-## 4. How to Test Offline Mode
+## Configuration
 
-1. Open `http://localhost:5173` in Google Chrome or Android Chrome.
-2. Allow the app to load once. The Service Worker (`sw.js`) caches the app shell, stylesheets, web fonts, and the pinned offline QR decoder (`jsqr.js`).
-3. Open Chrome DevTools (`F12`), switch to the **Network** tab, and select **Offline** (or enable Airplane Mode on a mobile device).
-4. Verify core functionality while offline:
-   - **Verify a document**: Click "Scan a document" -> test sample certificates. Verification succeeds completely offline because the cryptographic public keys and revocation list are cached in IndexedDB.
-   - **Tamper detection**: Test the tampered certificate. It detects the invalid signature and rejects the document with details hidden.
-   - **Issue a document**: Sign in and navigate to `/issue`. An offline banner appears: *"You're offline. This document will be saved and sent when you're back online."* Submitting saves the document in the offline `issuanceQueue` as "Waiting to sync".
-   - **Automatic background sync**: Switch the network back to **Online**. The sync engine detects network reconnection and syncs the pending issuance queue and audit logs with exponential backoff.
+Set these variables in your `.env` file:
 
----
-
-## 5. How to Change the Signing Location
-
-The system decouples the signing step behind a single interface (`ISigningProvider`) in [signing-provider.js](file:///d:/Projects/WaseNet/frontend/src/signing-provider.js):
-
-```javascript
-export class SigningProvider {
-  async signDocument(documentPayload, kid, authToken) { ... }
-}
-```
-
-### Option 1: Server-Side Signing (`ServerSigningProvider` — Default)
-- Documents are canonicalized, hashed with SHA-256, and sent to `/api/issue/sign`.
-- The server signs the credential using the protected ECDSA P-256 private key stored in `/backend/data/server_es256.json`.
-- Private keys are **never** stored on verifier devices, verifier code, or browser storage (NFR-S2).
-
-### Option 2: Isolated Hardware Token / Secure Enclave (`IsolatedMockHardwareSigningProvider`)
-- For offline counter operations with an attached cryptographic USB token or Secure Enclave simulator.
-- Private keys exist solely in transient memory during signing and are **never** written to IndexedDB or localStorage.
-- To switch providers, call:
-```javascript
-import { setSigningProvider, IsolatedMockHardwareSigningProvider } from './signing-provider.js';
-setSigningProvider(new IsolatedMockHardwareSigningProvider());
-```
-
----
-
-## 6. Cryptographic Specifications
-
-- **Canonicalization**: RFC 8785 (JSON Canonicalization Scheme / JCS). Keys are recursively sorted lexicographically; no whitespace around separators.
-- **Hashing**: SHA-256 of the UTF-8 canonical byte stream.
-- **Digital Signature**: ES256 (ECDSA with NIST P-256 curve and SHA-256). Signatures use IEEE P1363 64-byte raw encoding (`r || s`).
-- **JWS Header**: `{"alg":"ES256","kid":"wase-aa-2026-01","typ":"JWT"}`.
-- **QR Code Matrix**: Standards-compliant QR Code with **Level M** error correction (15% damage recovery).
-
----
-
-## 7. SRS Ambiguities Resolved
-
-| # | Ambiguity / Underspecified Item | SRS Resolution & Architecture Choice |
+| Variable | Default | Description |
 |---|---|---|
-| **1** | **Signing Location & Key Custody** | Decoupled behind `SigningProvider`. Default is `ServerSigningProvider` where private key remains strictly on the server (NFR-S2). For disconnected field counters, `IsolatedMockHardwareSigningProvider` holds ephemeral keys in memory without persistence. |
-| **2** | **QR Code Payload Encoding** | Encoded as standard JWS Compact Serialization string (`header.payload.signature`). Defensively handles raw JWS strings, custom scheme prefixes (`wasenet:<jws>`), and URL fragment formats (`https://...#<jws>`). |
-| **3** | **Check Precedence Order** | Strict 4-step sequence: (1) Cryptographic signature first; (2) DRL revocation second; (3) Expiry date third; (4) Valid. A tampered document **never** displays as valid, revoked, or expired. |
-| **4** | **Tampered & Unreadable Data Privacy** | Document details (holder name, dates, ID) are strictly hidden for `TAMPERED` and `UNREADABLE` states to prevent fraudulent data display, accompanied by: *"Details are hidden because the signature did not match."* |
-| **5** | **Offline Storage Ceiling (NFR-P3)** | Caches lightweight app shell, fonts, and IndexedDB delta records. Total storage footprint is < 3 MB, comfortably below the 25 MB limit. |
-| **6** | **Session Expiry & Data Preservation** | 8-hour JWT absolute session expiry. When redirected from protected forms upon timeout, inputs are stored in `sessionStorage` and automatically restored when the officer logs back in. |
-| **7** | **Idempotent Sync Mechanism** | Client tracks `drl_version` and `key_bundle_version`. Server responds with delta updates (`sinceVersion`), eliminating redundant downloads. Audit uploads and issuance queue syncs use document IDs as deduplication idempotency keys. |
+| `DATABASE_URL` | `sqlite:///./wasenet.db` | Database connection string |
+| `JWT_SECRET` | none (required) | Secret used to sign admin session tokens |
+| `JWT_EXPIRY_HOURS` | `8` | Admin session lifetime in hours |
+| `SIGNING_ALGORITHM` | `ES256` | Signing algorithm: `ES256` or `RS256` |
+| `DRL_SYNC_INTERVAL` | `3600` | Seconds between revocation list checks |
+| `DEFAULT_LANGUAGE` | `en` | Default interface language: `en` or `am` |
 
 ---
 
-## 8. Unit Test Execution
+## API Overview
 
-Run the automated Node.js test suite:
-```bash
-node --test tests/crypto.test.js tests/verify-logic.test.js
-```
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `POST` | `/api/auth/login` | Sign in and receive an 8-hour session token |
+| `POST` | `/api/credentials` | Create and sign a credential |
+| `GET` | `/api/keys/bundle` | Download the active public key bundle |
+| `GET` | `/api/revocations?since=<version>` | Fetch revocation list updates since a given version |
+| `POST` | `/api/revocations` | Revoke a document with a reason code |
+| `POST` | `/api/audit/batch` | Upload a batch of verification audit events |
 
-### Test Suite Output
-```
-✔ RFC 8785 Deterministic Canonical JSON stringification (1.07ms)
-✔ Canonical JSON handles primitive and edge types (0.13ms)
-✔ Base64URL encoding and decoding (RFC 7515 / RFC 4648) (0.41ms)
-✔ SHA-256 calculation matches standard vector (5.63ms)
-✔ JWS Compact Serialization produces valid 3-part token with ES256 (4.01ms)
-▶ 4-State Verification Logic and Precedence Rules
-  ✔ 1. Valid document verification (6.10ms)
-  ✔ 2. Tampered content detection (signature mismatch) (1.46ms)
-  ✔ 3. CRITICAL RULE: Tampered document must NEVER display as VALID, REVOKED, or EXPIRED (1.31ms)
-  ✔ 4. Revoked document check (authentic signature but on DRL) (1.51ms)
-  ✔ 5. Expired document check (authentic signature, not on DRL, but past date) (1.33ms)
-  ✔ 6. Security: Rejection of algorithm "none" and other algorithms (0.26ms)
-  ✔ 7. Security: Rejection of unknown or revoked kid (0.69ms)
-  ✔ 8. Robustness: Malformed QR payload resolves to UNREADABLE without crash (0.72ms)
-✔ 4-State Verification Logic and Precedence Rules (16.29ms)
-ℹ tests 14 | pass 14 | fail 0
-```
+---
 
-You can also run tests interactively in the browser by navigating to `#/test` in the running frontend.
+## Security
+
+- **Private keys stay on the server.** Signing keys are never sent to client devices or stored in the browser.
+- **Encrypted transport.** All client-server traffic uses HTTPS with TLS 1.3.
+- **Password hashing.** Account passwords are hashed with Bcrypt or Argon2.
+- **Short sessions.** Admin tokens expire after 8 hours.
+- **Replay resistance.** Each credential includes a unique UUIDv4 document ID and an issuance timestamp.
+- **Data minimization.** Only the metadata needed for verification is stored. No biometric data is collected.
+
+---
+
+## Limitations
+
+- **No hardware security module.** Keys are stored in software in this version.
+- **No national PKI or Fayda integration.** Verification relies on internal trust bundles.
+- **No blockchain.** Revocation uses compact, delta-synced lists.
+- **Android-first.** The verifier targets Android browsers and Chromium-based desktop browsers. There is no native iOS app.
+
+---
+
+## Roadmap
+
+**Phase 2 (current)**
+- [ ] Audit log batch synchronization
+- [ ] Amharic typography and translation review
+
+**Future**
+- [ ] Printable PDF credentials with watermarked QR codes
+- [ ] Expiry alerts for issuers
+- [ ] HSM support via PKCS#11
+- [ ] Adapter for Fayda national ID verification
+
+---
+
+## Contributing
+
+1. Fork the repository and create a feature branch:
+
+   ```bash
+   git checkout -b feature/your-feature
+   ```
+
+2. Follow the project's linting and formatting rules.
+3. Add tests that cover both online and offline verification.
+4. Make sure all tests pass.
+5. Open a pull request with a short description of your changes.
+
+---
+
+## License
+
+WaseNet is released under the MIT License. See [LICENSE](LICENSE) for details.
+
+---
+
+## Acknowledgements
+
+- Information Network Security Administration (INSA), for the Phase-Two capstone framework and guidance.
+- Capstone supervisors and advisors.
