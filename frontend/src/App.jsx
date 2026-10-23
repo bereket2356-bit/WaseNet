@@ -1,23 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { I18nProvider } from './i18n.jsx';
+import { I18nProvider, useI18n } from './i18n.jsx';
 import Header from './components/Header.jsx';
 import Footer from './components/Footer.jsx';
-import BottomNav from './components/BottomNav.jsx';
-import MobileDrawer from './components/MobileDrawer.jsx';
 
 import LandingPage from './pages/LandingPage.jsx';
 import VerifyPage from './pages/VerifyPage.jsx';
 import ResultPage from './pages/ResultPage.jsx';
-import LoginPage from './pages/LoginPage.jsx';
+import HowPage from './pages/HowPage.jsx';
 import IssuePage from './pages/IssuePage.jsx';
-import IssueDonePage from './pages/IssueDonePage.jsx';
-import QueuePage from './pages/QueuePage.jsx';
-import AuditPage from './pages/AuditPage.jsx';
-import AdminKeysPage from './pages/AdminKeysPage.jsx';
-import AdminRevokePage from './pages/AdminRevokePage.jsx';
-import AdminIssuersPage from './pages/AdminIssuersPage.jsx';
-import SyncPage from './pages/SyncPage.jsx';
-import TestPage from './pages/TestPage.jsx';
+import AdminPage from './pages/AdminPage.jsx';
 
 function parseHash() {
   const hash = window.location.hash.replace(/^#\/?/, '');
@@ -29,10 +20,41 @@ function parseHash() {
       params[k] = v;
     }
   }
-  return { route: routePart || 'landing', params };
+
+  const parts = (routePart || '').split('/');
+  let route = parts[0] || 'home';
+  if (route === 'landing') route = 'home';
+
+  // Support legacy routes & subroute tabs
+  if (route === 'admin' && parts[1]) {
+    params.tab = parts[1];
+  } else if (route === 'queue') {
+    route = 'admin';
+    params.tab = 'queue';
+  } else if (route === 'audit') {
+    route = 'admin';
+    params.tab = 'audit';
+  } else if (route === 'admin-keys') {
+    route = 'admin';
+    params.tab = 'keys';
+  } else if (route === 'admin-revoke') {
+    route = 'admin';
+    params.tab = 'revoke';
+  } else if (route === 'admin-issuers') {
+    route = 'admin';
+    params.tab = 'issuers';
+  } else if (route === 'sync') {
+    route = 'admin';
+    params.tab = 'sync';
+  } else if (route === 'login' || route === 'issue-done') {
+    route = 'issue';
+  }
+
+  return { route, params };
 }
 
 function MainApp() {
+  const { t } = useI18n();
   const [routeState, setRouteState] = useState(() => parseHash());
 
   useEffect(() => {
@@ -44,29 +66,31 @@ function MainApp() {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
-  const navigate = (newRoute, params = {}) => {
+  const navigate = (newRoute, newParams = {}) => {
     let hash = `#/${newRoute}`;
-    const keys = Object.keys(params);
+    const keys = Object.keys(newParams);
     if (keys.length > 0) {
       const q = new URLSearchParams();
-      keys.forEach((k) => q.set(k, params[k]));
+      keys.forEach((k) => q.set(k, newParams[k]));
       hash += `?${q.toString()}`;
     }
     window.location.hash = hash;
-    setRouteState({ route: newRoute, params });
+    setRouteState(parseHash());
     window.scrollTo(0, 0);
   };
 
   const { route, params } = routeState;
 
-  // Toggle landing page background vs app shell background
+  // Update document title to match reference
   useEffect(() => {
-    if (route === 'landing' || !route) {
-      document.body.classList.add('landing-page');
+    const navPage = route === 'result' ? 'verify' : route;
+    if (navPage === 'home') {
+      document.title = 'WaseNet';
     } else {
-      document.body.classList.remove('landing-page');
+      const titleKey = 'nav_' + navPage;
+      document.title = `WaseNet · ${t(titleKey) || navPage}`;
     }
-  }, [route]);
+  }, [route, t]);
 
   let PageComponent = LandingPage;
   switch (route) {
@@ -76,71 +100,30 @@ function MainApp() {
     case 'result':
       PageComponent = ResultPage;
       break;
-    case 'login':
-      PageComponent = LoginPage;
+    case 'how':
+      PageComponent = HowPage;
       break;
     case 'issue':
       PageComponent = IssuePage;
       break;
-    case 'issue-done':
-      PageComponent = IssueDonePage;
+    case 'admin':
+      PageComponent = AdminPage;
       break;
-    case 'queue':
-      PageComponent = QueuePage;
-      break;
-    case 'audit':
-      PageComponent = AuditPage;
-      break;
-    case 'admin-keys':
-      PageComponent = AdminKeysPage;
-      break;
-    case 'admin-revoke':
-      PageComponent = AdminRevokePage;
-      break;
-    case 'admin-issuers':
-      PageComponent = AdminIssuersPage;
-      break;
-    case 'sync':
-      PageComponent = SyncPage;
-      break;
-    case 'test':
-      PageComponent = TestPage;
-      break;
+    case 'home':
     default:
       PageComponent = LandingPage;
       break;
   }
 
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', minHeight: '100dvh' }}>
-      <Header
-        currentRoute={route}
-        navigate={navigate}
-        onOpenMenu={() => setIsMobileMenuOpen(true)}
-      />
+      <Header currentRoute={route} navigate={navigate} />
 
-      <main className="main-content" id="main-content">
+      <main className="main-content wrap" id="main-content" tabIndex="-1" style={{ flex: '1 0 auto', paddingBottom: '48px' }}>
         <PageComponent routeParams={params} navigate={navigate} />
       </main>
 
       <Footer navigate={navigate} />
-
-      {/* Mobile-first Bottom Navigation Bar */}
-      <BottomNav
-        currentRoute={route}
-        navigate={navigate}
-        onOpenMenu={() => setIsMobileMenuOpen(true)}
-      />
-
-      {/* Accessible Mobile Slide-over Drawer */}
-      <MobileDrawer
-        isOpen={isMobileMenuOpen}
-        onClose={() => setIsMobileMenuOpen(false)}
-        currentRoute={route}
-        navigate={navigate}
-      />
     </div>
   );
 }
