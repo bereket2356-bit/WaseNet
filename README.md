@@ -163,7 +163,7 @@ wasenet/
 1. Clone the repository and enter the project directory:
 
    ```bash
-   git clone https://github.com/your-org/wasenet.git
+   git clone https://github.com/bereket2356-bit/wasenet.git
    cd wasenet
    ```
 
