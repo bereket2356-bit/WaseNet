@@ -6,6 +6,7 @@
 
 import { keyStore, drlStore, auditStore, queueStore, metaStore } from './storage.js';
 import { getToken } from './auth.js';
+import { apiUrl } from './api-config.js';
 
 let isSyncing = false;
 let backoffDelay = 2000; // Starts at 2 seconds
@@ -48,7 +49,7 @@ export async function syncRegistry(force = false) {
     // 1. Fetch Public Key Bundle
     const currentKeyVer = await metaStore.get('key_bundle_version', 0);
     try {
-      const keyRes = await fetch(`/api/keys/bundle?sinceVersion=${currentKeyVer}`, { headers });
+      const keyRes = await fetch(apiUrl(`/api/keys/bundle?sinceVersion=${currentKeyVer}`), { headers });
       if (keyRes.ok) {
         const keyData = await keyRes.json();
         if (keyData.keys && keyData.keys.length > 0) {
@@ -65,7 +66,7 @@ export async function syncRegistry(force = false) {
     // 2. Fetch Revocation List Delta
     const currentDrlVer = await metaStore.get('drl_version', 0);
     try {
-      const drlRes = await fetch(`/api/revocation-list?sinceVersion=${currentDrlVer}`, { headers });
+      const drlRes = await fetch(apiUrl(`/api/revocation-list?sinceVersion=${currentDrlVer}`), { headers });
       if (drlRes.ok) {
         const drlData = await drlRes.json();
         if (drlData.delta && drlData.delta.length > 0) {
@@ -83,7 +84,7 @@ export async function syncRegistry(force = false) {
     const pendingDocs = await queueStore.getAllPending();
     if (pendingDocs.length > 0) {
       try {
-        const queueRes = await fetch('/api/issue/sync', {
+        const queueRes = await fetch(apiUrl('/api/issue/sync'), {
           method: 'POST',
           headers,
           body: JSON.stringify({ documents: pendingDocs })
@@ -104,7 +105,7 @@ export async function syncRegistry(force = false) {
     const unsentAudit = await auditStore.getUnsentRecords(50);
     if (unsentAudit.length > 0) {
       try {
-        const auditRes = await fetch('/api/audit/batch', {
+        const auditRes = await fetch(apiUrl('/api/audit/batch'), {
           method: 'POST',
           headers,
           body: JSON.stringify({ records: unsentAudit })
