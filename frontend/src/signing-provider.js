@@ -5,6 +5,7 @@
  */
 
 import { canonicalizeJson, computeSha256, createJwsCompact } from './crypto.js';
+import { API_BASE_URL } from './api-config.js';
 
 export class SigningProvider {
   /**
@@ -99,7 +100,7 @@ export class IsolatedMockHardwareSigningProvider extends SigningProvider {
 }
 
 // Active provider instance singleton
-let activeProvider = new ServerSigningProvider();
+let activeProvider = new ServerSigningProvider(API_BASE_URL);
 
 export function getSigningProvider() {
   return activeProvider;
