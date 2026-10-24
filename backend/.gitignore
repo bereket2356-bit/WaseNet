@@ -1,0 +1,19 @@
+# Python & Virtualenv
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Testing & Cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local databases & logs
+*.db
+*.sqlite3
+*.log
+.env
