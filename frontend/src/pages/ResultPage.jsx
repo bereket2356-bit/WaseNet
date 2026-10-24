@@ -37,6 +37,24 @@ const RESULTS_CONFIG = {
   }
 };
 
+const ERROR_MESSAGES = {
+  scan: {
+    title: 'Could not read',
+    desc: 'This QR code could not be read from the camera. Try again with better lighting.',
+    note: 'Hold the phone steady and keep the whole code inside the frame.'
+  },
+  upload: {
+    title: 'Could not read',
+    desc: 'This QR code could not be read from the uploaded image. Choose a clearer file and try again.',
+    note: 'Use a clear photo or scan of the QR code. Ensure the code is in focus, well-lit, and not cropped.'
+  },
+  id: {
+    title: 'Could not read',
+    desc: 'This document ID could not be found or verified. Check the document number and try again.',
+    note: 'Ensure the document ID is entered correctly, including all hyphens and characters.'
+  }
+};
+
 const DOC_TYPES = {
   dt_land: 'Land certificate',
   dt_coop: 'Cooperative credential',
@@ -121,7 +139,16 @@ export default function ResultPage({ routeParams, navigate }) {
     evaluate();
   }, [routeParams?.jws, routeParams?.id, routeParams?.s]);
 
-  const cfg = RESULTS_CONFIG[activeStatus] || RESULTS_CONFIG.valid;
+  const verifySource = routeParams?.source || sessionStorage.getItem('wase_verify_source') || (routeParams?.id ? 'id' : 'scan');
+
+  const baseCfg = RESULTS_CONFIG[activeStatus] || RESULTS_CONFIG.valid;
+  const cfg = activeStatus === 'error'
+    ? {
+        ...baseCfg,
+        ...(ERROR_MESSAGES[verifySource] || ERROR_MESSAGES.scan)
+      }
+    : baseCfg;
+
   const isDetailsVisible = cfg.f === 1;
 
   const displayType = DOC_TYPES[docData.type] || docData.type;
@@ -137,7 +164,7 @@ export default function ResultPage({ routeParams, navigate }) {
   ];
 
   return (
-    <div>
+    <div className="verify-wrap" style={{ paddingTop: '28px', paddingBottom: '32px' }}>
       <section className="banner" data-s={cfg.k} role="status">
         <h2>{cfg.title}</h2>
         <p>{cfg.desc}</p>
@@ -162,7 +189,7 @@ export default function ResultPage({ routeParams, navigate }) {
         </p>
       )}
 
-      <div className="row-btns" style={{ marginTop: '24px' }}>
+      <div className="row-btns" style={{ marginTop: '24px', justifyContent: 'center' }}>
         <a
           className="btn"
           href="#/verify"
@@ -171,7 +198,7 @@ export default function ResultPage({ routeParams, navigate }) {
             navigate('verify');
           }}
         >
-          Scan another document
+          {verifySource === 'upload' ? 'Upload another file' : verifySource === 'id' ? 'Check another document' : 'Scan another document'}
         </a>
 
         {(cfg.k === 'tampered' || cfg.k === 'revoked') && (
@@ -201,11 +228,11 @@ export default function ResultPage({ routeParams, navigate }) {
         )}
       </div>
 
-      <div className="stack" style={{ marginTop: '36px' }}>
+      <div className="stack" style={{ marginTop: '36px', textAlign: 'center' }}>
         <p className="muted" style={{ fontSize: '15px' }}>
           Preview another result
         </p>
-        <div className="chips">
+        <div className="chips" style={{ justifyContent: 'center' }}>
           {Object.keys(RESULTS_CONFIG).map((s) => (
             <a
               key={s}
@@ -215,6 +242,7 @@ export default function ResultPage({ routeParams, navigate }) {
               onClick={(e) => {
                 e.preventDefault();
                 sessionStorage.removeItem('wase_verify_jws');
+                sessionStorage.removeItem('wase_verify_source');
                 navigate('result', { s });
               }}
             >
