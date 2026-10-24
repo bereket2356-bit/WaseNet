@@ -115,10 +115,10 @@ function MainApp() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', minHeight: '100dvh' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', minHeight: '100dvh', width: '100%', minWidth: 0 }}>
       <Header currentRoute={route} navigate={navigate} />
 
-      <main className="main-content wrap" id="main-content" tabIndex="-1" style={{ flex: '1 0 auto', paddingBottom: '48px' }}>
+      <main className="main-content wrap" id="main-content" tabIndex="-1" style={{ flex: '1 0 auto', minWidth: 0 }}>
         <PageComponent routeParams={params} navigate={navigate} />
       </main>
 

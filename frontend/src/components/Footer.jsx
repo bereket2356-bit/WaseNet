@@ -60,7 +60,7 @@ export default function Footer({ navigate }) {
           <a
             href="#/report"
             className="text-btn"
-            style={{ fontSize: '14px', padding: '0 4px', minHeight: '36px' }}
+            style={{ fontSize: '13px', padding: '0 4px', minHeight: '40px' }}
             onClick={(e) => {
               if (navigate) {
                 e.preventDefault();
@@ -73,7 +73,7 @@ export default function Footer({ navigate }) {
           <a
             href="#/contact"
             className="text-btn"
-            style={{ fontSize: '14px', padding: '0 4px', minHeight: '36px' }}
+            style={{ fontSize: '13px', padding: '0 4px', minHeight: '40px' }}
             onClick={(e) => {
               if (navigate) {
                 e.preventDefault();
