@@ -58,7 +58,8 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5173",
         "http://localhost:3000",
         "http://localhost:5000",
-        "http://localhost:8080"
+        "http://localhost:8080",
+        "https://wase-net.vercel.app"
     ]
 
     @field_validator("CORS_ORIGINS", mode="before")
