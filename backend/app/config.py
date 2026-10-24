@@ -3,7 +3,7 @@ Configuration module for WaseNet Backend
 Implements NFR-S1, NFR-S3, FR-1.1, FR-1.3, FR-4.1
 """
 from typing import List, Union
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, AliasChoices
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     # Database connection string (PostgreSQL 15+ in production, SQLite supported for isolated unit tests)
     DATABASE_URL: str = Field(
         default="postgresql://wasenet_user:wasenet_pass@localhost:5432/wasenet_db",
+        validation_alias=AliasChoices("DATABASE_URL", "POSTGRES_URL"),
         description="Database URL for SQLAlchemy 2.x"
     )
 
