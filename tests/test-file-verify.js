@@ -209,32 +209,67 @@ async function runTest() {
       input.files = dt.files;
       input.dispatchEvent(new Event('change', { bubbles: true }));
 
-      // Wait for async decode and navigation
+      // Wait for async decode, navigation, and DOM render
       let attempts = 0;
-      while (!window.location.hash.includes('result') && attempts < 35) {
+      while ((!window.location.hash.includes('result') || !document.querySelector('.banner h2')) && attempts < 40) {
         await new Promise(r => setTimeout(r, 100));
         attempts++;
       }
+      await new Promise(r => setTimeout(r, 100));
 
       const hash = window.location.hash;
       const bannerTitle = document.querySelector('.banner h2')?.textContent?.trim();
       const note = document.querySelector('.note')?.textContent?.trim();
+      const bannerCs = window.getComputedStyle(document.querySelector('.banner h2'));
+      const bannerDesc = document.querySelector('.banner p')?.textContent?.trim();
       const contactBtn = document.querySelector('.row-btns a[href*="contact"]');
 
       return {
         hash,
         bannerTitle,
+        bannerDesc,
+        bannerTextAlign: bannerCs.textAlign,
         note,
         hasContactBtn: Boolean(contactBtn)
       };
     })()`);
     assert('No-QR image navigates to result page with error status', Boolean(noQrCheck && noQrCheck.hash && noQrCheck.hash.includes('s=error')), JSON.stringify(noQrCheck));
     assert('Result title is "Could not read"', noQrCheck && noQrCheck.bannerTitle === 'Could not read');
-    assert('Result displays note for unreadable codes',
-      noQrCheck && noQrCheck.note === 'Hold the phone steady and keep the whole code inside the frame.',
+    assert('Result title is centered', noQrCheck && noQrCheck.bannerTextAlign === 'center');
+    assert('Upload error description is tailored to uploaded images',
+      noQrCheck && noQrCheck.bannerDesc.includes('uploaded image'),
+      noQrCheck?.bannerDesc
+    );
+    assert('Upload error note is tailored to uploaded files',
+      noQrCheck && noQrCheck.note.includes('photo or scan of the QR code'),
       noQrCheck?.note
     );
     assert('Result displays Contact us button', Boolean(noQrCheck && noQrCheck.hasContactBtn));
+
+    // Verify Differentiated Error Messages for Camera Scan and Document ID
+    const scanErrorCheck = await evalExpr(send, `(async () => {
+      window.location.hash = '#/result?s=error&source=scan';
+      await new Promise(r => setTimeout(r, 150));
+      const desc = document.querySelector('.banner p')?.textContent?.trim();
+      const note = document.querySelector('.note')?.textContent?.trim();
+      return { desc, note };
+    })()`);
+    assert('Scan error note matches camera framing instruction',
+      scanErrorCheck && scanErrorCheck.note === 'Hold the phone steady and keep the whole code inside the frame.',
+      scanErrorCheck?.note
+    );
+
+    const idErrorCheck = await evalExpr(send, `(async () => {
+      window.location.hash = '#/result?s=error&source=id';
+      await new Promise(r => setTimeout(r, 150));
+      const desc = document.querySelector('.banner p')?.textContent?.trim();
+      const note = document.querySelector('.note')?.textContent?.trim();
+      return { desc, note };
+    })()`);
+    assert('Document ID error message is tailored to ID entry',
+      idErrorCheck && idErrorCheck.desc.includes('document ID') && idErrorCheck.note.includes('hyphens'),
+      JSON.stringify(idErrorCheck)
+    );
 
     // Fetch sample tokens from the running app
     const sampleTokens = await evalExpr(send, `(async () => {
