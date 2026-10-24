@@ -30,6 +30,7 @@ else:
     engine_kwargs["pool_pre_ping"] = True
     engine_kwargs["pool_size"] = 10
     engine_kwargs["max_overflow"] = 20
+    engine_kwargs["pool_recycle"] = 300
 
 db_url = settings.DATABASE_URL
 if db_url.startswith("postgresql://"):
