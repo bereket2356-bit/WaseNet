@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useI18n } from '../i18n.jsx';
 import { getCurrentUser, getToken } from '../auth.js';
 import { drlStore, metaStore } from '../storage.js';
+import { apiUrl } from '../api-config.js';
 
 export default function AdminRevokePage({ navigate }) {
   const { t } = useI18n();
@@ -39,7 +40,7 @@ export default function AdminRevokePage({ navigate }) {
     if (navigator.onLine) {
       try {
         const token = getToken();
-        await fetch('/api/admin/revoke', {
+        await fetch(apiUrl('/api/admin/revoke'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
