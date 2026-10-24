@@ -616,7 +616,7 @@ export default function IssuePage({ navigate }) {
 
       {/* Pending and Sync Section (Migrated from Admin) */}
       <section className="card" style={{ marginTop: '36px' }}>
-        <div className="toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+        <div className="toolbar">
           <h2 style={{ fontSize: '1.4rem' }}>Pending and sync</h2>
           <button
             className="btn sm"

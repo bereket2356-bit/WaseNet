@@ -12,7 +12,7 @@ export default function LandingPage({ navigate }) {
         <p className="lead">
           WaseNet proves land certificates, cooperative credentials, and local permits genuine, even when the network is down.
         </p>
-        <div className="row-btns" style={{ justifyContent: 'center', marginTop: '24px' }}>
+        <div className="row-btns">
           <a
             className="btn"
             href="#/verify"

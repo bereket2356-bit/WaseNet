@@ -216,7 +216,7 @@ export default function VerifyPage({ navigate }) {
 
       {user && (
         <section className="card" style={{ marginTop: '36px' }}>
-          <div className="toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+          <div className="toolbar">
             <h2 style={{ fontSize: '1.4rem' }}>Recent checks</h2>
             <label className="field" style={{ margin: 0, minWidth: '180px' }}>
               <span className="muted" style={{ fontSize: '14px', fontWeight: 700 }}>
