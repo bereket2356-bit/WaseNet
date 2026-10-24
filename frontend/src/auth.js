@@ -4,6 +4,8 @@
  * and form data preservation on session timeout.
  */
 
+import { apiUrl } from './api-config.js';
+
 const TOKEN_KEY = 'wasenet_jwt';
 const USER_KEY = 'wasenet_user';
 const UNSAVED_FORM_PREFIX = 'wasenet_unsaved_form_';
@@ -46,7 +48,7 @@ export function clearSession() {
 
 export async function login(username, password) {
   try {
-    const res = await fetch('/api/auth/login', {
+    const res = await fetch(apiUrl('/api/auth/login'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password })
