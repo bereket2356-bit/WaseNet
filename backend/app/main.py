@@ -106,3 +106,34 @@ app.add_api_route("/api/revocation-list", v_revocations, methods=["GET"], includ
 app.add_api_route("/api/admin/revoke", v_admin_revoke, methods=["POST"], include_in_schema=False)
 app.add_api_route("/api/issue/sync", v_queue_sync, methods=["POST"], include_in_schema=False)
 app.add_api_route("/api/audit/batch", v_audit_batch, methods=["POST"], include_in_schema=False)
+
+from app.security.canonical import canonicalize_json
+from app.security.signer import signer
+
+@app.post("/api/issue/sign", include_in_schema=False)
+async def v_issue_sign(request: Request):
+    data = await request.json()
+    payload = data.get("payload", {})
+    kid = data.get("kid") or signer.kid
+    canonical_payload = canonicalize_json(payload)
+    header = {"alg": "ES256", "kid": kid, "typ": "JWT"}
+    jws = signer.sign_document(header, canonical_payload)
+    return {"jws": jws, "kid": kid}
+
+from sqlalchemy import text
+from app.database import get_db
+from sqlalchemy.orm import Session
+from fastapi import Depends
+
+@app.get("/api/health", include_in_schema=False)
+def api_health(db: Session = Depends(get_db)):
+    try:
+        db.execute(text("SELECT 1"))
+        db_status = "connected"
+    except Exception as e:
+        db_status = f"error: {str(e)}"
+    return {
+        "status": "healthy",
+        "database": db_status,
+        "provider": "Neon PostgreSQL"
+    }
