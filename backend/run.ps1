@@ -33,9 +33,10 @@ switch ($Command) {
         & $VENV_PYTHON scripts/seed.py
     }
     "run" {
-        Write-Host "Starting WaseNet API development server on http://localhost:8000..." -ForegroundColor Green
+        $PORT = if ($env:PORT) { $env:PORT } else { "5000" }
+        Write-Host "Starting WaseNet API development server on http://localhost:$PORT..." -ForegroundColor Green
         Set-Location $PSScriptRoot
-        & $VENV_UVICORN app.main:app --host 0.0.0.0 --port 8000 --reload
+        & $VENV_UVICORN app.main:app --host 0.0.0.0 --port $PORT --reload
     }
     "test" {
         Write-Host "Running comprehensive test suite..." -ForegroundColor Cyan
