@@ -237,8 +237,9 @@ export default function VerifyPage({ navigate }) {
         });
         if (code && code.data) {
           stopCamera();
+          sessionStorage.setItem('wase_verify_source', 'scan');
           sessionStorage.setItem('wase_verify_jws', code.data);
-          navigate('result', { jws: code.data });
+          navigate('result', { jws: code.data, source: 'scan' });
           return;
         }
       }
@@ -286,17 +287,20 @@ export default function VerifyPage({ navigate }) {
       const decodedText = await decodeQrCodeFromFile(file);
       if (decodedText) {
         setAnnouncement('QR code read successfully.');
+        sessionStorage.setItem('wase_verify_source', 'upload');
         sessionStorage.setItem('wase_verify_jws', decodedText);
-        navigate('result', { jws: decodedText });
+        navigate('result', { jws: decodedText, source: 'upload' });
       } else {
         setAnnouncement('Could not read QR code.');
+        sessionStorage.setItem('wase_verify_source', 'upload');
         sessionStorage.removeItem('wase_verify_jws');
-        navigate('result', { s: 'error' });
+        navigate('result', { s: 'error', source: 'upload' });
       }
     } catch (err) {
       setAnnouncement('Could not read QR code.');
+      sessionStorage.setItem('wase_verify_source', 'upload');
       sessionStorage.removeItem('wase_verify_jws');
-      navigate('result', { s: 'error' });
+      navigate('result', { s: 'error', source: 'upload' });
     } finally {
       setIsDecoding(false);
       if (fileInputRef.current) {
@@ -309,7 +313,8 @@ export default function VerifyPage({ navigate }) {
     e.preventDefault();
     const id = docIdInput.trim();
     if (id) {
-      navigate('result', { id });
+      sessionStorage.setItem('wase_verify_source', 'id');
+      navigate('result', { id, source: 'id' });
     }
   };
 
