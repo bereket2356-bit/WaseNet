@@ -11,12 +11,25 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
+import pg from 'pg';
+
+dotenv.config();
+const { Pool } = pg;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'wasenet-ethiopia-gov-jwt-secret-key-2026';
+const DATABASE_URL = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+
+export const dbPool = DATABASE_URL
+  ? new Pool({
+      connectionString: DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
+    })
+  : null;
 
 // ---------------- In-Memory / File Persistent Registry Store ---------------- //
 const DATA_DIR = path.join(__dirname, 'data');
@@ -373,7 +386,22 @@ const server = http.createServer(async (req, res) => {
 
     // 9. GET /api/health
     if (pathname === '/api/health') {
-      return sendJson(res, 200, { status: 'healthy', drlVersion, activeKeys: publicKeysList.length });
+      let dbStatus = 'disconnected';
+      if (dbPool) {
+        try {
+          const resDb = await dbPool.query('SELECT 1');
+          if (resDb.rows.length) dbStatus = 'connected';
+        } catch (e) {
+          dbStatus = 'error: ' + e.message;
+        }
+      }
+      return sendJson(res, 200, {
+        status: 'healthy',
+        database: dbStatus,
+        provider: 'Neon PostgreSQL',
+        drlVersion,
+        activeKeys: publicKeysList.length
+      });
     }
 
     sendJson(res, 404, { error: 'Not found' });
