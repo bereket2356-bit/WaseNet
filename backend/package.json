@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "start:fastapi": "venv\\Scripts\\uvicorn.exe app.main:app --host 0.0.0.0 --port 5000",
+    "dev:fastapi": "venv\\Scripts\\uvicorn.exe app.main:app --host 0.0.0.0 --port 5000 --reload"
   },
   "dependencies": {
     "dotenv": "^18.0.9",
