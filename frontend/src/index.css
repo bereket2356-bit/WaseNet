@@ -804,20 +804,27 @@ nav button.nav-link[aria-current="page"] {
 
 /* Verification Result */
 .banner {
-  padding: 22px;
+  padding: 28px 24px;
   color: #fff;
   border-radius: 16px;
   display: grid;
   gap: 8px;
+  text-align: center;
+  justify-items: center;
 }
 
 .banner h2 {
   font-size: clamp(1.8rem, 4.5vw, 2.4rem);
   color: #fff;
+  margin: 0 0 10px 0;
+  text-align: center;
 }
 
 .banner p {
   font-size: 1rem;
+  margin: 0 auto;
+  max-width: 52ch;
+  text-align: center;
 }
 
 .banner[data-s="valid"] {
@@ -848,6 +855,7 @@ nav button.nav-link[aria-current="page"] {
   border-radius: 12px;
   color: var(--muted);
   font-size: 14px;
+  text-align: center;
 }
 
 .chips {
