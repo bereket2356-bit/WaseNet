@@ -14,6 +14,23 @@ from app.security.jwt_auth import verify_access_token, AuthenticationError
 security = HTTPBearer(auto_error=False)
 
 
+def get_optional_current_user(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db)
+):
+    if not credentials or not credentials.credentials:
+        return None
+    try:
+        payload = verify_access_token(credentials.credentials)
+        user_id = payload.get("sub")
+        user_uuid = uuid.UUID(user_id) if isinstance(user_id, str) else user_id
+        user = db.query(User).filter(User.id == user_uuid).first()
+        return user if (user and user.status == "active") else None
+    except Exception:
+        return None
+
+
 def get_current_user(
     request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security),
