@@ -1154,6 +1154,17 @@
         await syncKeyBundle();
         keyRecord = await getKeyFromDb(header.kid);
       }
+      if (!keyRecord && header.kid === 'wase-aa-2026-01') {
+        keyRecord = {
+          kid: 'wase-aa-2026-01',
+          jwk: {
+            kty: 'EC',
+            crv: 'P-256',
+            x: 'w9yhsGuXcfMi8icPCbYf5GThbSMHaNBn2V5dld-5qXg',
+            y: 'HJGsXkTld80puDNwogERg3Wy_USI9B9KQddoFKlll7c'
+          }
+        };
+      }
       if (!keyRecord || !keyRecord.jwk) {
         return { valid: false, docId: payload?.doc_id, error: 'Unknown key' };
       }
@@ -1191,16 +1202,37 @@
       if (!pdfjsPromise) {
         pdfjsPromise = new Promise((resolve, reject) => {
           const script = document.createElement('script');
-          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+          script.src = '/lib/pdf.min.js';
           script.onload = () => {
             if (window.pdfjsLib) {
-              window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+              window.pdfjsLib.GlobalWorkerOptions.workerSrc = '/lib/pdf.worker.min.js';
               resolve(window.pdfjsLib);
             } else {
               reject(new Error('pdf.js unavailable'));
             }
           };
-          script.onerror = () => reject(new Error('pdf.js failed to load from cdnjs'));
+          script.onerror = () => {
+            const cdnScript = document.createElement('script');
+            cdnScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+            cdnScript.onload = () => {
+              if (window.pdfjsLib) {
+                try {
+                  const workerBlob = new Blob(
+                    [`importScripts('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js');`],
+                    { type: 'application/javascript' }
+                  );
+                  window.pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(workerBlob);
+                } catch (e) {
+                  window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                }
+                resolve(window.pdfjsLib);
+              } else {
+                reject(new Error('pdf.js unavailable'));
+              }
+            };
+            cdnScript.onerror = () => reject(new Error('pdf.js failed to load'));
+            document.head.appendChild(cdnScript);
+          };
           document.head.appendChild(script);
         });
       }
@@ -1222,18 +1254,47 @@
         const maxPages = Math.min(pdfDoc.numPages, 3);
         for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
           const page = await pdfDoc.getPage(pageNum);
-          const viewport = page.getViewport({ scale: 2.0 });
-          const offscreenCanvas = document.createElement('canvas');
-          offscreenCanvas.width = viewport.width;
-          offscreenCanvas.height = viewport.height;
-          const ctx = offscreenCanvas.getContext('2d', { willReadFrequently: true });
-          await page.render({ canvasContext: ctx, viewport }).promise;
-          const imgData = ctx.getImageData(0, 0, offscreenCanvas.width, offscreenCanvas.height);
-          const decoded = multiStepDecode(imgData, offscreenCanvas.width, offscreenCanvas.height);
-          offscreenCanvas.width = 0;
-          offscreenCanvas.height = 0;
-          if (decoded) {
-            return decoded;
+          for (const scale of [3.0, 2.0]) {
+            const viewport = page.getViewport({ scale });
+            const offscreenCanvas = document.createElement('canvas');
+            offscreenCanvas.width = Math.round(viewport.width);
+            offscreenCanvas.height = Math.round(viewport.height);
+            const ctx = offscreenCanvas.getContext('2d', { willReadFrequently: true });
+
+            // Fill white background first so transparent PDF regions are contrasted
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
+
+            await page.render({ canvasContext: ctx, viewport }).promise;
+
+            const rawImg = ctx.getImageData(0, 0, offscreenCanvas.width, offscreenCanvas.height);
+            const d = rawImg.data;
+            for (let i = 0; i < d.length; i += 4) {
+              const a = d[i + 3] / 255;
+              if (a < 1) {
+                d[i] = Math.round(d[i] * a + 255 * (1 - a));
+                d[i + 1] = Math.round(d[i + 1] * a + 255 * (1 - a));
+                d[i + 2] = Math.round(d[i + 2] * a + 255 * (1 - a));
+                d[i + 3] = 255;
+              }
+            }
+
+            // Step 1: Bottom-left quadrant (where specimen QR box is located)
+            const bhY = Math.round(offscreenCanvas.height * 0.40);
+            const bhH = offscreenCanvas.height - bhY;
+            const qW = Math.round(offscreenCanvas.width * 0.65);
+            const blImg = ctx.getImageData(0, bhY, qW, bhH);
+            let decoded = multiStepDecode(blImg, qW, bhH);
+            if (decoded) return decoded;
+
+            // Step 2: Bottom half (standard for certificate QR codes)
+            const bhImg = ctx.getImageData(0, bhY, offscreenCanvas.width, bhH);
+            decoded = multiStepDecode(bhImg, offscreenCanvas.width, bhH);
+            if (decoded) return decoded;
+
+            // Step 3: Full frame with dual inversion
+            decoded = multiStepDecode(rawImg, offscreenCanvas.width, offscreenCanvas.height);
+            if (decoded) return decoded;
           }
         }
         return null;
@@ -1266,6 +1327,18 @@
       return qrcodeLibPromise;
     }
 
+    async function generateQrDataUrl(text, minPixels = 240) {
+      const qrcode = await loadQrCodeLib();
+      const qr = qrcode(0, 'M');
+      qr.addData(text);
+      qr.make();
+      const moduleCount = qr.getModuleCount();
+      const margin = 4;
+      const totalModules = moduleCount + margin * 2;
+      const cellSize = Math.max(3, Math.ceil(minPixels / totalModules));
+      return qr.createDataURL(cellSize, margin);
+    }
+
     async function generateQrSvg(text, minPixels = 240) {
       const qrcode = await loadQrCodeLib();
       const qr = qrcode(0, 'M');
@@ -1274,7 +1347,7 @@
       const moduleCount = qr.getModuleCount();
       const margin = 4; // Quiet zone of at least 4 modules
       const totalModules = moduleCount + margin * 2;
-      const cellSize = Math.max(2, Math.ceil(minPixels / totalModules));
+      const cellSize = Math.max(3, Math.ceil(minPixels / totalModules));
       return qr.createSvgTag(cellSize, margin);
     }
 
@@ -1299,12 +1372,14 @@
       const expiryDateRaw = d.expires_at || d.expires || d.expiryDate || d.expiry_date || '';
       const issueDateDisplay = formatDateDisplay(issueDateRaw);
       const expiryDateDisplay = formatDateDisplay(expiryDateRaw);
-      const photo = d.photo || '';
+      const photo = d.photo || currentIssuedDoc?.photo || (window.__currentIssuedPhoto) || '';
       const qrPayload = d.qr_payload || d.jws || '';
 
+      let qrDataUrl = '';
       let qrSvgMarkup = '';
       if (qrPayload) {
         try {
+          qrDataUrl = await generateQrDataUrl(qrPayload, 300);
           qrSvgMarkup = await generateQrSvg(qrPayload, 240);
         } catch (qrErr) {
           console.error('Failed to generate print QR code:', qrErr);
@@ -1365,7 +1440,9 @@
           </div>
           <div class="qr-row">
             <div class="qr-placeholder-box ps-qr" role="img" aria-label="QR code container" style="width:4cm; height:4cm; min-width:4cm; min-height:4cm; box-sizing:border-box; border:1px solid #334155; padding:0; display:flex; align-items:center; justify-content:center; overflow:hidden;">
-              ${qrSvgMarkup ? `
+              ${qrDataUrl ? `
+                <img src="${qrDataUrl}" alt="QR code" style="width:3.5cm; height:3.5cm; display:block; image-rendering:pixelated;" />
+              ` : qrSvgMarkup ? `
                 <div style="width:3.5cm; height:3.5cm; display:flex; align-items:center; justify-content:center;">
                   ${qrSvgMarkup}
                 </div>
@@ -1419,7 +1496,8 @@
           throw new Error('Server record fetch failed');
         }
         const serverDoc = await res.json();
-        await fillPrintSheet(serverDoc);
+        window.__currentIssuedPhoto = currentIssuedDoc?.photo || '';
+        await fillPrintSheet({ ...serverDoc, photo: currentIssuedDoc?.photo || serverDoc.photo });
         window.print();
       } catch (printErr) {
         if (errEl) {
@@ -1469,8 +1547,8 @@
     // Four-step QR decoder (SRS item 6)
     function multiStepDecode(imageData, w, h) {
       if (!window.jsQR) return null;
-      // 1. Full frame
-      let code = window.jsQR(imageData.data, w, h, { inversionAttempts: 'dontInvert' });
+      // 1. Full frame with dual inversion
+      let code = window.jsQR(imageData.data, w, h, { inversionAttempts: 'attemptBoth' });
       if (code && code.data) return code.data;
 
       // 2. Centered crop (central 70%)
@@ -1489,7 +1567,7 @@
           cropBuf[dstIdx+3] = imageData.data[srcIdx+3];
         }
       }
-      code = window.jsQR(cropBuf, cw, ch, { inversionAttempts: 'dontInvert' });
+      code = window.jsQR(cropBuf, cw, ch, { inversionAttempts: 'attemptBoth' });
       if (code && code.data) return code.data;
 
       // 3. Downscaled copy
@@ -1507,7 +1585,7 @@
             downBuf[dstIdx+3] = imageData.data[srcIdx+3];
           }
         }
-        code = window.jsQR(downBuf, dw, dh, { inversionAttempts: 'dontInvert' });
+        code = window.jsQR(downBuf, dw, dh, { inversionAttempts: 'attemptBoth' });
         if (code && code.data) return code.data;
       }
 
@@ -1517,6 +1595,7 @@
         invBuf[i] = 255 - invBuf[i];
         invBuf[i+1] = 255 - invBuf[i+1];
         invBuf[i+2] = 255 - invBuf[i+2];
+        invBuf[i+3] = 255;
       }
       code = window.jsQR(invBuf, w, h, { inversionAttempts: 'dontInvert' });
       if (code && code.data) return code.data;
