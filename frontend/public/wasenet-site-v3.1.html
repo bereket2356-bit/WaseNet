@@ -465,7 +465,23 @@
       }
       .watermark,
       .ps-wm {
-        display: none !important;
+        display: block !important;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) rotate(-25deg);
+        font-family: var(--font-sans, "Atkinson Hyperlegible", system-ui, sans-serif);
+        font-size: 42px;
+        font-weight: 800;
+        color: rgba(220, 38, 38, 0.14) !important;
+        pointer-events: none;
+        user-select: none;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+        white-space: nowrap;
+        z-index: 1;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
       }
       .sheet-header,
       .ps-head {
@@ -1182,7 +1198,41 @@
       }
     }
 
-    function fillPrintSheet(d) {
+    // Dynamic pinned loader for qrcode-generator v1.4.4 (released > 2 weeks ago on cdnjs)
+    let qrcodeLibPromise = null;
+    function loadQrCodeLib() {
+      if (window.qrcode) return Promise.resolve(window.qrcode);
+      if (qrcodeLibPromise) return qrcodeLibPromise;
+      qrcodeLibPromise = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
+        script.crossOrigin = 'anonymous';
+        script.onload = () => {
+          if (window.qrcode) {
+            resolve(window.qrcode);
+          } else {
+            reject(new Error('qrcode-generator loaded but window.qrcode is missing'));
+          }
+        };
+        script.onerror = () => reject(new Error('Failed to load qrcode-generator library'));
+        document.head.appendChild(script);
+      });
+      return qrcodeLibPromise;
+    }
+
+    async function generateQrSvg(text, minPixels = 240) {
+      const qrcode = await loadQrCodeLib();
+      const qr = qrcode(0, 'M');
+      qr.addData(text);
+      qr.make();
+      const moduleCount = qr.getModuleCount();
+      const margin = 4; // Quiet zone of at least 4 modules
+      const totalModules = moduleCount + margin * 2;
+      const cellSize = Math.max(2, Math.ceil(minPixels / totalModules));
+      return qr.createSvgTag(cellSize, margin);
+    }
+
+    async function fillPrintSheet(d) {
       let sheet = document.getElementById('print-sheet');
       if (!sheet) {
         sheet = document.createElement('div');
@@ -1198,15 +1248,26 @@
       const holderName = d.holder_name || d.holder || d.holderName || '';
       const fanRaw = d.holder_id || d.holderId || d.fan || d.holder_national_id || '';
       const holderFan = formatFan(fanRaw).formatted || fanRaw;
-      const issuerCode = d.issuer_code || d.issuer || d.issuerCode || 'ET-AA-LAND-04';
+      const issuerCode = d.issuer_code || d.issuer || d.issuerCode || 'ET-AA-DOC-01';
       const issueDateRaw = d.issued_at || d.issued || d.issueDate || d.issue_date || '';
       const expiryDateRaw = d.expires_at || d.expires || d.expiryDate || d.expiry_date || '';
       const issueDateDisplay = formatDateDisplay(issueDateRaw);
       const expiryDateDisplay = formatDateDisplay(expiryDateRaw);
       const photo = d.photo || '';
+      const qrPayload = d.qr_payload || d.jws || '';
+
+      let qrSvgMarkup = '';
+      if (qrPayload) {
+        try {
+          qrSvgMarkup = await generateQrSvg(qrPayload, 240);
+        } catch (qrErr) {
+          console.error('Failed to generate print QR code:', qrErr);
+        }
+      }
 
       sheet.innerHTML = `
         <div class="specimen-card ps-sheet" role="region" aria-label="Document certificate sheet">
+          <div class="watermark ps-wm" aria-hidden="true">SPECIMEN · NOT VALID</div>
           <div class="sheet-header ps-head">
             <div class="sheet-title-block">
               <h2 class="sheet-title">${escapeHtml(docType)}</h2>
@@ -1257,22 +1318,76 @@
             </div>
           </div>
           <div class="qr-row">
-            <div class="qr-placeholder-box ps-qr" role="img" aria-label="QR code container">
-              <div>QR code</div>
-              <div>(authenticated)</div>
+            <div class="qr-placeholder-box ps-qr" role="img" aria-label="QR code container" style="width:4cm; height:4cm; min-width:4cm; min-height:4cm; box-sizing:border-box; border:1px solid #334155; padding:0; display:flex; align-items:center; justify-content:center; overflow:hidden;">
+              ${qrSvgMarkup ? `
+                <div style="width:3.5cm; height:3.5cm; display:flex; align-items:center; justify-content:center;">
+                  ${qrSvgMarkup}
+                </div>
+              ` : `
+                <div>QR code</div>
+                <div>(authenticated)</div>
+              `}
             </div>
             <div class="qr-explanation">
               Scan with the WaseNet verifier. Authentic documents check signatures against INSA public keys.
             </div>
           </div>
+          <div class="sheet-disclaimer-line ps-foot" style="margin-top:16px; font-size:12px; color:#64748B;">
+            Specimen sheet. Not issued by any office. Not valid as identification or proof of ownership.
+          </div>
         </div>
       `;
+
+      const svgInsideBox = sheet.querySelector('.ps-qr svg');
+      if (svgInsideBox) {
+        svgInsideBox.style.width = '3.5cm';
+        svgInsideBox.style.height = '3.5cm';
+        svgInsideBox.style.maxWidth = '100%';
+        svgInsideBox.style.maxHeight = '100%';
+        svgInsideBox.style.display = 'block';
+      }
     }
 
-    function printIssuedDoc() {
-      if (!currentIssuedDoc) return;
-      fillPrintSheet(currentIssuedDoc);
-      window.print();
+    async function printIssuedDoc() {
+      const docId = currentIssuedDoc?.doc_id || currentIssuedDoc?.id;
+      const printBtn = document.getElementById('btn-print-doc');
+      const errEl = document.getElementById('created-print-err');
+      if (errEl) errEl.style.display = 'none';
+
+      if (!docId) {
+        if (errEl) {
+          errEl.textContent = 'The certificate could not be loaded. Try again.';
+          errEl.style.display = 'block';
+        }
+        return;
+      }
+
+      if (printBtn) {
+        printBtn.disabled = true;
+        printBtn.textContent = 'Loading certificate...';
+      }
+
+      try {
+        const res = await fetchApi(`/api/v1/documents/${encodeURIComponent(docId)}`);
+        if (!res.ok) {
+          throw new Error('Server record fetch failed');
+        }
+        const serverDoc = await res.json();
+        await fillPrintSheet(serverDoc);
+        window.print();
+      } catch (printErr) {
+        if (errEl) {
+          errEl.textContent = 'The certificate could not be loaded. Try again.';
+          errEl.style.display = 'block';
+        } else {
+          alert('The certificate could not be loaded. Try again.');
+        }
+      } finally {
+        if (printBtn) {
+          printBtn.disabled = false;
+          printBtn.textContent = 'Print';
+        }
+      }
     }
 
     function toggleTheme() {
@@ -1708,21 +1823,21 @@
         let status = (params.status || params.s || 'valid').toLowerCase();
         const d = params.doc || {};
 
-        let docType = getDocTypeLabel(d.doc_type || d.type || 'Land certificate');
-        let holderName = d.holder_name || d.holder || 'Abebe Bikila';
-        let fanId = formatFan(d.holder_national_id || d.holder_id || '1024589234017685').formatted;
-        let docId = params.docId || d.id || d.doc_id || '550e8400-e29b-41d4-a716-446655440001';
-        let issuerCode = d.issuer_code || d.issuer || 'ET-AA-DOC-01';
-        let issueDate = formatDateDisplay(d.issue_date || d.issued_at || d.issued || new Date().toISOString().split('T')[0]);
-        let expiryDate = formatDateDisplay(d.expiry_date || d.expires_at || d.expires || '2031-01-15');
+        let docType = (d.doc_type || d.type) ? getDocTypeLabel(d.doc_type || d.type) : '—';
+        let holderName = d.holder_name || d.holder || '—';
+        let fanId = (d.holder_national_id || d.holder_id) ? formatFan(d.holder_national_id || d.holder_id).formatted : '—';
+        let docId = params.docId || d.id || d.doc_id || '—';
+        let issuerCode = d.issuer_code || d.issuer || '—';
+        let issueDate = (d.issue_date || d.issued_at || d.issued) ? formatDateDisplay(d.issue_date || d.issued_at || d.issued) : '—';
+        let expiryDate = (d.expiry_date || d.expires_at || d.expires) ? formatDateDisplay(d.expiry_date || d.expires_at || d.expires) : '—';
 
         let bannerTitle = 'Valid';
         let bannerDesc = 'Authentic and current. Document verified against INSA key bundle.';
-        let isDetailsVisible = true;
+        let isDetailsVisible = !params.detailsHidden;
 
         if (status === 'tampered') {
           bannerTitle = 'Tampered';
-          bannerDesc = 'This document failed the signature check. Do not accept it.';
+          bannerDesc = params.note || 'This document failed the signature check. Do not accept it.';
           isDetailsVisible = false;
         } else if (status === 'revoked') {
           bannerTitle = 'Revoked';
@@ -1762,10 +1877,12 @@
                     <dt>Holder name</dt>
                     <dd>${escapeHtml(holderName)}</dd>
                   </div>
+                  ${!params.offline && (d.holder_national_id || d.holder_id) ? `
                   <div>
                     <dt>Holder national ID (FAN)</dt>
                     <dd>${escapeHtml(fanId)}</dd>
                   </div>
+                  ` : ''}
                   <div>
                     <dt>Issuer code</dt>
                     <dd>${escapeHtml(issuerCode)}</dd>
@@ -2224,7 +2341,7 @@
       }
     }
 
-    function renderCreatedView(qrPayload, syncLabel, docType, holder, cleanFan, docId) {
+    async function renderCreatedView(qrPayload, syncLabel, docType, holder, cleanFan, docId) {
       const container = document.getElementById('view-container');
       const isQueued = syncLabel.includes('Waiting');
       container.innerHTML = `
@@ -2248,23 +2365,31 @@
             <div><dt>Holder national ID (FAN)</dt><dd>${formatFan(cleanFan).formatted}</dd></div>
             <div><dt>Document ID</dt><dd>${escapeHtml(docId)}</dd></div>
           </dl>
-          <div style="display:flex; justify-content:center; margin:20px auto;">
-            <canvas id="done-qr-canvas" width="240" height="240"></canvas>
+          <div id="created-qr-wrap" style="display:flex; justify-content:center; align-items:center; margin:20px auto; min-width:240px; min-height:240px;">
+            <p class="muted">Generating secure QR code...</p>
           </div>
+          <p id="created-print-err" class="err" role="alert" style="margin-top:10px; display:none; text-align:center;"></p>
           <div style="display:flex; justify-content:center; gap:12px; margin-top:20px;">
-            <button class="btn outline" type="button" onclick="printIssuedDoc()">Print</button>
+            <button class="btn outline" type="button" id="btn-print-doc" onclick="printIssuedDoc()">Print</button>
             <button class="btn" type="button" onclick="navigateTo('issue')">Issue another</button>
           </div>
         </div>
       `;
 
-      if (window.QRCode) {
-        window.QRCode.toCanvas(document.getElementById('done-qr-canvas'), qrPayload, {
-          errorCorrectionLevel: 'M',
-          margin: 4,
-          width: 240,
-          color: { dark: '#1E2B30', light: '#FFFFFF' }
-        });
+      try {
+        const svgMarkup = await generateQrSvg(qrPayload, 240);
+        const wrap = document.getElementById('created-qr-wrap');
+        if (wrap) {
+          wrap.innerHTML = svgMarkup;
+          const svgEl = wrap.querySelector('svg');
+          if (svgEl) {
+            svgEl.style.width = '240px';
+            svgEl.style.height = '240px';
+            svgEl.style.display = 'block';
+          }
+        }
+      } catch (err) {
+        console.error('Failed to generate created QR code:', err);
       }
     }
 
