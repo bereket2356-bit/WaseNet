@@ -17,7 +17,6 @@ export class QrCodeGenerator {
    */
   static drawToCanvas(canvas, text, size = 260) {
     if (!canvas || !text) return;
-    const finalSize = Math.max(240, size);
 
     try {
       const qr = QRCode.create(text, { errorCorrectionLevel: 'M' });
@@ -25,25 +24,30 @@ export class QrCodeGenerator {
       const margin = 4; // SRS Requirement: At least 4 modules quiet zone
       const totalModules = moduleCount + margin * 2;
 
-      canvas.width = finalSize;
-      canvas.height = finalSize;
+      // Ensure exact integer cell size (minimum 3px) so modules do not overlap or distort finder patterns
+      const targetSize = Math.max(240, size);
+      const cellSize = Math.max(3, Math.ceil(targetSize / totalModules));
+      const actualSize = totalModules * cellSize;
+
+      canvas.width = actualSize;
+      canvas.height = actualSize;
       const ctx = canvas.getContext('2d');
 
-      // Clear with pure white background for high contrast
+      // Clear with pure white background for maximum contrast
       ctx.fillStyle = '#FFFFFF';
-      ctx.fillRect(0, 0, finalSize, finalSize);
+      ctx.fillRect(0, 0, actualSize, actualSize);
 
-      const cellSize = finalSize / totalModules;
-      ctx.fillStyle = '#1E2B30';
+      // Draw pure black modules on exact integer boundaries
+      ctx.fillStyle = '#000000';
 
       for (let r = 0; r < moduleCount; r++) {
         for (let c = 0; c < moduleCount; c++) {
           if (qr.modules.get(r, c)) {
             ctx.fillRect(
-              Math.round((margin + c) * cellSize),
-              Math.round((margin + r) * cellSize),
-              Math.ceil(cellSize),
-              Math.ceil(cellSize)
+              (margin + c) * cellSize,
+              (margin + r) * cellSize,
+              cellSize,
+              cellSize
             );
           }
         }
@@ -62,29 +66,45 @@ export class QrCodeGenerator {
    */
   static toSvgString(text, size = 260) {
     if (!text) return '';
-    const finalSize = Math.max(240, size);
     try {
       const qr = QRCode.create(text, { errorCorrectionLevel: 'M' });
       const moduleCount = qr.modules.size;
       const margin = 4;
       const totalModules = moduleCount + margin * 2;
-      const cellSize = finalSize / totalModules;
+      const cellSize = Math.max(3, Math.ceil(size / totalModules));
+      const actualSize = totalModules * cellSize;
 
       let paths = '';
       for (let r = 0; r < moduleCount; r++) {
         for (let c = 0; c < moduleCount; c++) {
           if (qr.modules.get(r, c)) {
-            const x = ((margin + c) * cellSize).toFixed(2);
-            const y = ((margin + r) * cellSize).toFixed(2);
-            const s = cellSize.toFixed(2);
-            paths += `<rect x="${x}" y="${y}" width="${s}" height="${s}" fill="#1E2B30"/>`;
+            const x = (margin + c) * cellSize;
+            const y = (margin + r) * cellSize;
+            paths += `<rect x="${x}" y="${y}" width="${cellSize}" height="${cellSize}" fill="#000000"/>`;
           }
         }
       }
-      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${finalSize} ${finalSize}" width="${finalSize}" height="${finalSize}"><rect width="${finalSize}" height="${finalSize}" fill="#FFFFFF"/>${paths}</svg>`;
+      return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${actualSize} ${actualSize}" width="${actualSize}" height="${actualSize}" shape-rendering="crispEdges"><rect width="${actualSize}" height="${actualSize}" fill="#FFFFFF"/>${paths}</svg>`;
     } catch (err) {
       console.error('QR SVG generation failed:', err);
-      throw new Error('Payload too large for QR version. Keep the signed JWS payload compact.');
+      return '';
+    }
+  }
+
+  /**
+   * Generates a high-resolution lossless PNG data URL of the QR code
+   */
+  static async toDataUrl(text, size = 360) {
+    if (!text) return '';
+    try {
+      return await QRCode.toDataURL(text, {
+        errorCorrectionLevel: 'M',
+        margin: 4,
+        width: size
+      });
+    } catch (err) {
+      console.error('QR data URL generation failed:', err);
+      return '';
     }
   }
 
