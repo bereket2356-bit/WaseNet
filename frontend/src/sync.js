@@ -6,7 +6,7 @@
 
 import { keyStore, drlStore, auditStore, queueStore, metaStore } from './storage.js';
 import { getToken } from './auth.js';
-import { apiUrl } from './api-config.js';
+import { apiUrl, fetchApi } from './api-config.js';
 
 let isSyncing = false;
 let backoffDelay = 2000; // Starts at 2 seconds
@@ -47,13 +47,19 @@ export async function syncRegistry(force = false) {
     };
 
     // 1. Fetch Public Key Bundle
-    const currentKeyVer = await metaStore.get('key_bundle_version', 0);
     try {
-      const keyRes = await fetch(apiUrl(`/api/keys/bundle?sinceVersion=${currentKeyVer}`), { headers });
+      const keyRes = await fetchApi('/api/v1/keys/bundle');
       if (keyRes.ok) {
         const keyData = await keyRes.json();
         if (keyData.keys && keyData.keys.length > 0) {
-          await keyStore.putKeysBatch(keyData.keys);
+          const mappedKeys = keyData.keys.map(k => ({
+            kid: k.kid,
+            jwk: k.public_key_jwk || k.jwk,
+            status: k.status === 'active' ? 'Active' : k.status,
+            algorithm: k.algorithm || 'ES256',
+            createdDate: k.created_at ? k.created_at.split('T')[0] : '2026-01-01'
+          }));
+          await keyStore.putKeysBatch(mappedKeys);
         }
         if (keyData.version) {
           await metaStore.set('key_bundle_version', keyData.version);
@@ -66,11 +72,13 @@ export async function syncRegistry(force = false) {
     // 2. Fetch Revocation List Delta
     const currentDrlVer = await metaStore.get('drl_version', 0);
     try {
-      const drlRes = await fetch(apiUrl(`/api/revocation-list?sinceVersion=${currentDrlVer}`), { headers });
+      const drlRes = await fetchApi(`/api/v1/revocations?since=${currentDrlVer}`);
       if (drlRes.ok) {
         const drlData = await drlRes.json();
         if (drlData.delta && drlData.delta.length > 0) {
-          await drlStore.applyDelta(drlData.delta);
+          for (const item of drlData.delta) {
+            await drlStore.revokeDocument(item.doc_id, item.reason || 'Revoked', item.revocation_version || drlData.version);
+          }
         }
         if (drlData.version) {
           await metaStore.set('drl_version', drlData.version);
