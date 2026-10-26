@@ -62,10 +62,19 @@ const DOC_TYPES = {
   dt_permit: 'Local permit'
 };
 
+function formatNationalId(val) {
+  if (!val) return '—';
+  const clean = String(val).replace(/\D/g, '').slice(0, 16);
+  if (clean.length === 16) {
+    return clean.replace(/(\d{4})(\d{4})(\d{4})(\d{4})/, '$1-$2-$3-$4');
+  }
+  return String(val);
+}
+
 const DEFAULT_DOC = {
   type: 'dt_land',
   holder: 'Abebe Bikila',
-  holderId: 'ETH-98765432-X',
+  holderId: '1024589234017685',
   issuer: 'KEBELE-04-AA',
   docId: '550e8400-e29b-41d4-a716-446655440000',
   issued: '1 Oct 2026',
@@ -156,7 +165,7 @@ export default function ResultPage({ routeParams, navigate }) {
   const fields = [
     ['Document type', displayType],
     ['Holder name', docData.holder],
-    ['Holder ID', docData.holderId],
+    ['Holder national ID (FAN)', formatNationalId(docData.holderId)],
     ['Issuer code', docData.issuer],
     ['Document ID', docData.docId],
     ['Issued', docData.issued],
