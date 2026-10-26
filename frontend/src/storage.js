@@ -327,8 +327,11 @@ export async function seedInitialRegistryData() {
     jwk: {
       kty: 'EC',
       crv: 'P-256',
-      x: 'f83OJ3D2xFmT5vU-L5_r7w2jZ_8mU7a4vW3yL5_r7w0',
-      y: 'x94PK4E3yGnu6wV-M6_s8x3k_9nV8b5wX4zM6_s8x3k'
+      x: 'w9yhsGuXcfMi8icPCbYf5GThbSMHaNBn2V5dld-5qXg',
+      y: 'HJGsXkTld80puDNwogERg3Wy_USI9B9KQddoFKlll7c',
+      kid: 'wase-aa-2026-01',
+      use: 'sig',
+      alg: 'ES256'
     }
   };
 
