@@ -51,35 +51,7 @@ export function formatDateDisplay(val) {
   return String(val);
 }
 
-let qrcodeLibPromise = null;
-function loadQrCodeLib() {
-  if (typeof window !== 'undefined' && window.qrcode) return Promise.resolve(window.qrcode);
-  if (qrcodeLibPromise) return qrcodeLibPromise;
-  qrcodeLibPromise = new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
-    script.crossOrigin = 'anonymous';
-    script.onload = () => {
-      if (window.qrcode) resolve(window.qrcode);
-      else reject(new Error('qrcode-generator loaded but window.qrcode missing'));
-    };
-    script.onerror = () => reject(new Error('Failed to load qrcode-generator'));
-    document.head.appendChild(script);
-  });
-  return qrcodeLibPromise;
-}
-
-async function generateQrSvg(text, minPixels = 240) {
-  const qrcode = await loadQrCodeLib();
-  const qr = qrcode(0, 'M');
-  qr.addData(text);
-  qr.make();
-  const moduleCount = qr.getModuleCount();
-  const margin = 4;
-  const totalModules = moduleCount + margin * 2;
-  const cellSize = Math.max(2, Math.ceil(minPixels / totalModules));
-  return qr.createSvgTag(cellSize, margin);
-}
+import { QrCodeGenerator } from '../qr-generator.js';
 
 export async function fillPrintSheet(d) {
   let sheet = document.getElementById('print-sheet');
@@ -102,13 +74,15 @@ export async function fillPrintSheet(d) {
   const expiryDateRaw = d.expires_at || d.expires || d.expiryDate || d.expiry_date || '';
   const issueDateDisplay = formatDateDisplay(issueDateRaw);
   const expiryDateDisplay = formatDateDisplay(expiryDateRaw);
-  const photo = d.photo || '';
+  const photo = d.photo || (typeof window !== 'undefined' && window.__currentIssuedPhoto) || '';
   const qrPayload = d.qr_payload || d.jws || '';
 
+  let qrDataUrl = '';
   let qrSvgMarkup = '';
   if (qrPayload) {
     try {
-      qrSvgMarkup = await generateQrSvg(qrPayload, 240);
+      qrDataUrl = await QrCodeGenerator.toDataUrl(qrPayload, 360);
+      qrSvgMarkup = QrCodeGenerator.toSvgString(qrPayload, 260);
     } catch (e) {
       console.error('Failed to generate print QR:', e);
     }
@@ -182,7 +156,9 @@ export async function fillPrintSheet(d) {
       <!-- QR Container Section with real QR inside 4x4cm box -->
       <div class="qr-row">
         <div class="qr-placeholder-box ps-qr" role="img" aria-label="QR code container" style="width:4cm; height:4cm; min-width:4cm; min-height:4cm; box-sizing:border-box; border:1px solid #334155; padding:0; display:flex; align-items:center; justify-content:center; overflow:hidden;">
-          ${qrSvgMarkup ? `
+          ${qrDataUrl ? `
+            <img src="${qrDataUrl}" alt="QR code" style="width:3.5cm; height:3.5cm; display:block; image-rendering:pixelated;" />
+          ` : qrSvgMarkup ? `
             <div style="width:3.5cm; height:3.5cm; display:flex; align-items:center; justify-content:center;">
               ${qrSvgMarkup}
             </div>
