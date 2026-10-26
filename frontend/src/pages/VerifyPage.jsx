@@ -485,35 +485,22 @@ export default function VerifyPage({ navigate }) {
       <div className="card scan" style={{ marginTop: '0px' }}>
         {!isScanning ? (
           <>
-            <a
+            <button
+              type="button"
               className="btn scan-btn block"
-              href="#/result?s=valid"
-              onClick={async (e) => {
-                if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                  e.preventDefault();
-                  try {
-                    await startCamera();
-                  } catch (err) {
-                    navigate('result', { s: 'valid' });
-                  }
+              onClick={async () => {
+                try {
+                  await startCamera();
+                } catch (err) {
+                  // Error is captured in scannerError state; do not navigate to demo result
                 }
               }}
             >
               Scan a document
-            </a>
+            </button>
             {scannerError && (
               <div style={{ marginTop: '12px' }}>
                 <p className="err" style={{ marginBottom: '10px' }}>{scannerError}</p>
-                <a
-                  className="btn outline sm"
-                  href="#/result?s=valid"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    navigate('result', { s: 'valid' });
-                  }}
-                >
-                  Scan a document (Demo)
-                </a>
               </div>
             )}
 
