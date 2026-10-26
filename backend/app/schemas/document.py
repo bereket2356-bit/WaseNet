@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, ConfigDict, model_validator
 
 
 class DocumentCreateRequest(BaseModel):
+    id: Optional[uuid.UUID] = Field(None, description="Device-generated Document ID for idempotent creation")
     doc_type: Literal[
         "land_certificate",
         "cooperative_credential",
@@ -33,6 +34,7 @@ class DocumentResponse(BaseModel):
     id: uuid.UUID
     doc_type: str
     issuer_id: uuid.UUID
+    issuer_code: Optional[str] = None
     kid: str
     issue_date: date
     expiry_date: date
@@ -43,6 +45,7 @@ class DocumentResponse(BaseModel):
     created_at: datetime
     sync_state: str
     holder_name: Optional[str] = None
+    holder_national_id: Optional[str] = None
     # QR payload represents the compact JWS rendered on the physical credential
     qr_payload: str
 

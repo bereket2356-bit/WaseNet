@@ -32,7 +32,7 @@ from app.schemas.audit import AuditEventResponse, PaginatedAuditResponse
 from app.security.canonical import canonicalize_json, compute_sha256_digest
 from app.security.signer import signer
 from app.security.encryption import encrypt_field, decrypt_field
-from app.api.deps import get_current_user, require_role
+from app.api.deps import get_current_user, require_role, get_optional_current_user
 from app.logging_config import logger
 
 router = APIRouter(tags=["Issuer & Document Operations"])
@@ -45,7 +45,7 @@ router = APIRouter(tags=["Issuer & Document Operations"])
 )
 def issue_document(
     req: DocumentCreateRequest,
-    current_user: User = Depends(require_role(["issuer", "administrator"])),
+    current_user: Optional[User] = Depends(get_optional_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -57,25 +57,52 @@ def issue_document(
     5. Stores records atomically in a single database transaction.
     6. Returns complete record and compact JWS QR payload.
     """
-    # Determine the issuer organization
-    issuer_id = current_user.issuer_id
-    if not issuer_id:
-        if current_user.role == "administrator":
-            # Admin issuing on behalf of the default primary registry
-            primary_issuer = db.query(Issuer).filter(Issuer.status == "active").first()
-            if not primary_issuer:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail={"error": {"code": "NO_ACTIVE_ISSUER", "message": "No active issuer organization exists"}}
-                )
-            issuer_id = primary_issuer.id
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail={"error": {"code": "NO_ISSUER_ASSIGNED", "message": "User is not linked to any issuer organization"}}
-            )
+    # Check for idempotency: if document with req.id already exists, return it
+    doc_id = req.id if req.id else uuid.uuid4()
+    existing_doc = db.query(Document).filter(Document.id == doc_id).first()
+    if existing_doc:
+        holder = db.query(HolderDetails).filter(HolderDetails.document_id == doc_id).first()
+        decrypted_fan = None
+        if holder and holder.holder_national_id:
+            try:
+                decrypted_fan = decrypt_field(holder.holder_national_id)
+            except Exception:
+                decrypted_fan = holder.holder_national_id
+        return DocumentResponse(
+            id=existing_doc.id,
+            doc_type=existing_doc.doc_type,
+            issuer_id=existing_doc.issuer_id,
+            issuer_code=existing_doc.issuer.issuer_code if existing_doc.issuer else None,
+            kid=existing_doc.kid,
+            issue_date=existing_doc.issue_date,
+            expiry_date=existing_doc.expiry_date,
+            payload_canonical=existing_doc.payload_canonical,
+            jws=existing_doc.jws,
+            payload_sha256=existing_doc.payload_sha256,
+            created_by=existing_doc.created_by,
+            created_at=existing_doc.created_at,
+            sync_state=existing_doc.sync_state,
+            holder_name=holder.holder_name if holder else None,
+            holder_national_id=decrypted_fan,
+            qr_payload=existing_doc.jws
+        )
 
-    doc_id = uuid.uuid4()
+    # Determine the issuer organization and user
+    primary_issuer = db.query(Issuer).filter(Issuer.status == "active").first()
+    if not primary_issuer:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": {"code": "NO_ACTIVE_ISSUER", "message": "No active issuer organization exists"}}
+        )
+
+    issuer_id = primary_issuer.id
+    creator_id = primary_issuer.id
+    if current_user:
+        creator_id = current_user.id
+        if current_user.issuer_id:
+            issuer_id = current_user.issuer_id
+
+    issuer_obj = db.query(Issuer).filter(Issuer.id == issuer_id).first()
 
     # Construct canonical payload for signature
     payload_dict = {
@@ -107,7 +134,7 @@ def issue_document(
         payload_canonical=canonical_payload,
         jws=jws,
         payload_sha256=sha256_digest,
-        created_by=current_user.id,
+        created_by=creator_id,
         sync_state="synced"
     )
 
@@ -129,6 +156,7 @@ def issue_document(
         id=document.id,
         doc_type=document.doc_type,
         issuer_id=document.issuer_id,
+        issuer_code=issuer_obj.issuer_code if issuer_obj else None,
         kid=document.kid,
         issue_date=document.issue_date,
         expiry_date=document.expiry_date,
@@ -139,6 +167,7 @@ def issue_document(
         created_at=document.created_at,
         sync_state=document.sync_state,
         holder_name=req.holder_name,
+        holder_national_id=req.holder_national_id,
         qr_payload=document.jws
     )
 
@@ -214,11 +243,11 @@ def list_documents(
 @router.get("/documents/{doc_id}", response_model=DocumentResponse)
 def get_document_by_id(
     doc_id: uuid.UUID,
-    current_user: User = Depends(require_role(["issuer", "administrator"])),
     db: Session = Depends(get_db)
 ):
     """
     Fetches full metadata and QR payload for a single document credential by ID (Scope 2).
+    Accessible publicly so verifiers can confirm document authenticity against database record.
     """
     document = db.query(Document).filter(Document.id == doc_id).first()
     if not document:
@@ -227,18 +256,21 @@ def get_document_by_id(
             detail={"error": {"code": "DOCUMENT_NOT_FOUND", "message": f"Document with ID {doc_id} was not found"}}
         )
 
-    if current_user.role == "issuer" and current_user.issuer_id != document.issuer_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={"error": {"code": "FORBIDDEN", "message": "You can only view documents issued by your organization"}}
-        )
-
     holder = db.query(HolderDetails).filter(HolderDetails.document_id == doc_id).first()
+    decrypted_fan = None
+    if holder and holder.holder_national_id:
+        try:
+            decrypted_fan = decrypt_field(holder.holder_national_id)
+        except Exception:
+            decrypted_fan = holder.holder_national_id
+
+    issuer = db.query(Issuer).filter(Issuer.id == document.issuer_id).first()
 
     return DocumentResponse(
         id=document.id,
         doc_type=document.doc_type,
         issuer_id=document.issuer_id,
+        issuer_code=issuer.issuer_code if issuer else None,
         kid=document.kid,
         issue_date=document.issue_date,
         expiry_date=document.expiry_date,
@@ -249,6 +281,7 @@ def get_document_by_id(
         created_at=document.created_at,
         sync_state=document.sync_state,
         holder_name=holder.holder_name if holder else None,
+        holder_national_id=decrypted_fan,
         qr_payload=document.jws
     )
 
