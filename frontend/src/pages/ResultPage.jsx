@@ -236,30 +236,6 @@ export default function ResultPage({ routeParams, navigate }) {
           </a>
         )}
       </div>
-
-      <div className="stack" style={{ marginTop: '36px', textAlign: 'center' }}>
-        <p className="muted" style={{ fontSize: '15px' }}>
-          Preview another result
-        </p>
-        <div className="chips" style={{ justifyContent: 'center' }}>
-          {Object.keys(RESULTS_CONFIG).map((s) => (
-            <a
-              key={s}
-              href={`#/result?s=${s}`}
-              className={`chip ${activeStatus === s ? 'active' : ''}`}
-              aria-current={activeStatus === s ? 'true' : undefined}
-              onClick={(e) => {
-                e.preventDefault();
-                sessionStorage.removeItem('wase_verify_jws');
-                sessionStorage.removeItem('wase_verify_source');
-                navigate('result', { s });
-              }}
-            >
-              {RESULTS_CONFIG[s].title}
-            </a>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
