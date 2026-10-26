@@ -44,6 +44,26 @@ export default function IssueDonePage({ routeParams, navigate }) {
       <p className="muted-text">{t('done.subheading')}</p>
 
       <div className="panel">
+        {doc.photo && (
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 'var(--space-4)' }}>
+            <div
+              style={{
+                width: '4cm',
+                height: '4cm',
+                borderRadius: '8px',
+                overflow: 'hidden',
+                border: '1px solid var(--line)',
+                backgroundColor: 'var(--stage)'
+              }}
+            >
+              <img
+                src={doc.photo}
+                alt={`Photo of ${doc.holderName || 'Holder'}`}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+            </div>
+          </div>
+        )}
         <div className="details-list" style={{ marginBottom: 'var(--space-4)' }}>
           <div className="detail-row">
             <span className="detail-label">{t('result.detail.doc_type')}</span>
@@ -53,6 +73,16 @@ export default function IssueDonePage({ routeParams, navigate }) {
             <span className="detail-label">{t('result.detail.holder_name')}</span>
             <span className="detail-value">{doc.holderName || '—'}</span>
           </div>
+          {doc.holderId && (
+            <div className="detail-row">
+              <span className="detail-label">Holder national ID (FAN)</span>
+              <span className="detail-value">
+                {String(doc.holderId).replace(/\D/g, '').length === 16
+                  ? String(doc.holderId).replace(/\D/g, '').replace(/(\d{4})(\d{4})(\d{4})(\d{4})/, '$1-$2-$3-$4')
+                  : doc.holderId}
+              </span>
+            </div>
+          )}
           <div className="detail-row">
             <span className="detail-label">{t('result.detail.doc_id')}</span>
             <span className="detail-value">{doc.docId || '—'}</span>
