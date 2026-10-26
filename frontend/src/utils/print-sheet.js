@@ -51,7 +51,37 @@ export function formatDateDisplay(val) {
   return String(val);
 }
 
-export function fillPrintSheet(d) {
+let qrcodeLibPromise = null;
+function loadQrCodeLib() {
+  if (typeof window !== 'undefined' && window.qrcode) return Promise.resolve(window.qrcode);
+  if (qrcodeLibPromise) return qrcodeLibPromise;
+  qrcodeLibPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
+    script.crossOrigin = 'anonymous';
+    script.onload = () => {
+      if (window.qrcode) resolve(window.qrcode);
+      else reject(new Error('qrcode-generator loaded but window.qrcode missing'));
+    };
+    script.onerror = () => reject(new Error('Failed to load qrcode-generator'));
+    document.head.appendChild(script);
+  });
+  return qrcodeLibPromise;
+}
+
+async function generateQrSvg(text, minPixels = 240) {
+  const qrcode = await loadQrCodeLib();
+  const qr = qrcode(0, 'M');
+  qr.addData(text);
+  qr.make();
+  const moduleCount = qr.getModuleCount();
+  const margin = 4;
+  const totalModules = moduleCount + margin * 2;
+  const cellSize = Math.max(2, Math.ceil(minPixels / totalModules));
+  return qr.createSvgTag(cellSize, margin);
+}
+
+export async function fillPrintSheet(d) {
   let sheet = document.getElementById('print-sheet');
   if (!sheet) {
     sheet = document.createElement('div');
@@ -65,23 +95,35 @@ export function fillPrintSheet(d) {
   const docType = getDocTypeLabel(d.type || d.docType || d.doc_type);
   const docId = d.doc_id || d.docId || d.id || '';
   const holderName = d.holder_name || d.holder || d.holderName || '';
-  const fanRaw = d.holder_id || d.holderId || d.fan || '';
+  const fanRaw = d.holder_id || d.holderId || d.fan || d.holder_national_id || '';
   const holderFan = formatFan(fanRaw).formatted || fanRaw;
-  const issuerCode = d.issuer_code || d.issuer || d.issuerCode || 'SPEC-00-AA';
+  const issuerCode = d.issuer_code || d.issuer || d.issuerCode || 'ET-AA-DOC-01';
   const issueDateRaw = d.issued_at || d.issued || d.issueDate || d.issue_date || '';
   const expiryDateRaw = d.expires_at || d.expires || d.expiryDate || d.expiry_date || '';
   const issueDateDisplay = formatDateDisplay(issueDateRaw);
   const expiryDateDisplay = formatDateDisplay(expiryDateRaw);
-
   const photo = d.photo || '';
+  const qrPayload = d.qr_payload || d.jws || '';
+
+  let qrSvgMarkup = '';
+  if (qrPayload) {
+    try {
+      qrSvgMarkup = await generateQrSvg(qrPayload, 240);
+    } catch (e) {
+      console.error('Failed to generate print QR:', e);
+    }
+  }
 
   sheet.innerHTML = `
     <div class="specimen-card ps-sheet" role="region" aria-label="Document certificate sheet">
+      <!-- Diagonal Watermark: SPECIMEN · NOT VALID -->
+      <div class="watermark ps-wm" aria-hidden="true">SPECIMEN · NOT VALID</div>
+
       <!-- Header Block: Title, Subtitle, and 4x4cm Image Holder -->
       <div class="sheet-header ps-head">
         <div class="sheet-title-block">
           <h2 class="sheet-title">${escapeHtml(docType)}</h2>
-          <p class="sheet-subtitle ps-sub">WaseNet specimen layout · Fictional data</p>
+          <p class="sheet-subtitle ps-sub">WaseNet layout · Verified record</p>
         </div>
         ${photo ? `
           <div class="photo-holder-4cm ps-photo has-photo" role="img" aria-label="Holder photo">
@@ -137,18 +179,37 @@ export function fillPrintSheet(d) {
         </div>
       </div>
 
-      <!-- QR Placeholder Section with text on the right -->
+      <!-- QR Container Section with real QR inside 4x4cm box -->
       <div class="qr-row">
-        <div class="qr-placeholder-box ps-qr" role="img" aria-label="QR code placeholder">
-          <div>QR code</div>
-          <div>(generated on issue)</div>
+        <div class="qr-placeholder-box ps-qr" role="img" aria-label="QR code container" style="width:4cm; height:4cm; min-width:4cm; min-height:4cm; box-sizing:border-box; border:1px solid #334155; padding:0; display:flex; align-items:center; justify-content:center; overflow:hidden;">
+          ${qrSvgMarkup ? `
+            <div style="width:3.5cm; height:3.5cm; display:flex; align-items:center; justify-content:center;">
+              ${qrSvgMarkup}
+            </div>
+          ` : `
+            <div>QR code</div>
+            <div>(authenticated)</div>
+          `}
         </div>
         <div class="qr-explanation">
-          Scan with the WaseNet verifier. Specimen codes carry test data only and will show a verification result for demonstration.
+          Scan with the WaseNet verifier. Authentic documents check signatures against INSA public keys.
         </div>
+      </div>
+
+      <!-- Footer Disclaimer Line -->
+      <div class="sheet-disclaimer-line ps-foot" style="margin-top:16px; font-size:12px; color:#64748B;">
+        Specimen sheet. Not issued by any office. Not valid as identification or proof of ownership.
       </div>
     </div>
   `;
+
+  const printSvg = sheet.querySelector('.ps-qr svg');
+  if (printSvg) {
+    printSvg.style.width = '3.5cm';
+    printSvg.style.height = '3.5cm';
+    printSvg.style.maxWidth = '100%';
+    printSvg.style.maxHeight = '100%';
+  }
 }
 
 if (typeof window !== 'undefined') {
