@@ -325,9 +325,9 @@ async function runTest() {
 
     // 6. Test Tampered QR Code Image
     console.log('\n--- 6. Testing Tampered QR Code Image ---');
-    await send('Page.navigate', { url: BASE_URL + '/#/verify' });
+    await evalExpr(send, `window.location.hash = '#/verify'`);
     await waitForSelector('#choose-file-btn', 8000);
-    await sleep(200);
+    await sleep(300);
 
     const tamperedQrBuffer = await QRCode.toBuffer(sampleTokens.tampered, {
       type: 'png',
@@ -348,7 +348,7 @@ async function runTest() {
       input.dispatchEvent(new Event('change', { bubbles: true }));
 
       let attempts = 0;
-      while (!window.location.hash.includes('result') && attempts < 35) {
+      while ((!window.location.hash.includes('s=tampered')) && attempts < 40) {
         await new Promise(r => setTimeout(r, 100));
         attempts++;
       }
