@@ -44,16 +44,39 @@ function loadPdfJs() {
   if (!pdfjsPromise) {
     pdfjsPromise = new Promise((resolve, reject) => {
       const script = document.createElement('script');
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      script.src = '/lib/pdf.min.js';
       script.onload = () => {
         if (window.pdfjsLib) {
-          window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+          window.pdfjsLib.GlobalWorkerOptions.workerSrc = '/lib/pdf.worker.min.js';
           resolve(window.pdfjsLib);
         } else {
           reject(new Error('pdf.js unavailable'));
         }
       };
-      script.onerror = () => reject(new Error('Failed to load pdf.js'));
+      script.onerror = () => {
+        // Fallback to CDN if local bundle is not present
+        const cdnScript = document.createElement('script');
+        cdnScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+        cdnScript.onload = () => {
+          if (window.pdfjsLib) {
+            try {
+              // Wrap cross-origin worker in a same-origin Blob to prevent SecurityError
+              const workerBlob = new Blob(
+                [`importScripts('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js');`],
+                { type: 'application/javascript' }
+              );
+              window.pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(workerBlob);
+            } catch (e) {
+              window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            }
+            resolve(window.pdfjsLib);
+          } else {
+            reject(new Error('pdf.js unavailable'));
+          }
+        };
+        cdnScript.onerror = () => reject(new Error('Failed to load pdf.js'));
+        document.head.appendChild(cdnScript);
+      };
       document.head.appendChild(script);
     });
   }
@@ -77,60 +100,64 @@ async function decodePdfFile(file, jsQR) {
     const maxPages = Math.min(pdfDoc.numPages, 3);
     for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
       const page = await pdfDoc.getPage(pageNum);
-      const viewport = page.getViewport({ scale: 2.0 });
-      const canvas = document.createElement('canvas');
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      await page.render({ canvasContext: ctx, viewport }).promise;
-      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      
+      // Try high-resolution scale 3.0 first (sharp modules for 3.5cm QR boxes on A4), then fallback to 2.0
+      for (const scale of [3.0, 2.0]) {
+        const viewport = page.getViewport({ scale });
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(viewport.width);
+        canvas.height = Math.round(viewport.height);
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-      // Attempt 1: Full frame
-      let code = jsQR(imgData.data, canvas.width, canvas.height, { inversionAttempts: 'dontInvert' });
-      if (code && code.data) {
-        canvas.width = 0; canvas.height = 0;
-        return code.data;
-      }
+        // Fill pure white background first so transparent PDF regions are not treated as black
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Attempt 2: Centered crop (central 70%)
-      const cw = Math.max(1, Math.round(canvas.width * 0.7));
-      const ch = Math.max(1, Math.round(canvas.height * 0.7));
-      const cx = Math.max(0, Math.round((canvas.width - cw) / 2));
-      const cy = Math.max(0, Math.round((canvas.height - ch) / 2));
-      const cropImgData = ctx.getImageData(cx, cy, cw, ch);
-      code = jsQR(cropImgData.data, cw, ch, { inversionAttempts: 'dontInvert' });
-      if (code && code.data) {
-        canvas.width = 0; canvas.height = 0;
-        return code.data;
-      }
+        await page.render({ canvasContext: ctx, viewport }).promise;
 
-      // Attempt 3: Downscaled copy
-      const dw = Math.floor(canvas.width / 2);
-      const dh = Math.floor(canvas.height / 2);
-      const downCanvas = document.createElement('canvas');
-      downCanvas.width = dw;
-      downCanvas.height = dh;
-      const dctx = downCanvas.getContext('2d');
-      dctx.drawImage(canvas, 0, 0, dw, dh);
-      const downImgData = dctx.getImageData(0, 0, dw, dh);
-      code = jsQR(downImgData.data, dw, dh, { inversionAttempts: 'dontInvert' });
-      downCanvas.width = 0; downCanvas.height = 0;
-      if (code && code.data) {
-        canvas.width = 0; canvas.height = 0;
-        return code.data;
-      }
+        // Extract pixel buffer and alpha-composite any transparent pixels over white
+        const rawImg = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const d = rawImg.data;
+        for (let i = 0; i < d.length; i += 4) {
+          const a = d[i + 3] / 255;
+          if (a < 1) {
+            d[i] = Math.round(d[i] * a + 255 * (1 - a));
+            d[i + 1] = Math.round(d[i + 1] * a + 255 * (1 - a));
+            d[i + 2] = Math.round(d[i + 2] * a + 255 * (1 - a));
+            d[i + 3] = 255;
+          }
+        }
 
-      // Attempt 4: Inverted copy
-      const invData = new Uint8ClampedArray(imgData.data);
-      for (let i = 0; i < invData.length; i += 4) {
-        invData[i] = 255 - invData[i];
-        invData[i + 1] = 255 - invData[i + 1];
-        invData[i + 2] = 255 - invData[i + 2];
-      }
-      code = jsQR(invData, canvas.width, canvas.height, { inversionAttempts: 'dontInvert' });
-      canvas.width = 0; canvas.height = 0;
-      if (code && code.data) {
-        return code.data;
+        // Region 1: Bottom-left quadrant (standard location for specimen QR box)
+        const bhY = Math.round(canvas.height * 0.40);
+        const bhH = canvas.height - bhY;
+        const qW = Math.round(canvas.width * 0.65);
+        const blData = ctx.getImageData(0, bhY, qW, bhH);
+        let code = jsQR(blData.data, qW, bhH, { inversionAttempts: 'attemptBoth' });
+        if (code && code.data) return code.data;
+
+        // Region 2: Entire bottom half (certificates place QR code in lower half)
+        const bottomData = ctx.getImageData(0, bhY, canvas.width, bhH);
+        code = jsQR(bottomData.data, canvas.width, bhH, { inversionAttempts: 'attemptBoth' });
+        if (code && code.data) return code.data;
+
+        // Region 3: Full frame with dual-inversion support
+        code = jsQR(d, canvas.width, canvas.height, { inversionAttempts: 'attemptBoth' });
+        if (code && code.data) return code.data;
+
+        // Region 4: Bottom-right quadrant
+        const brData = ctx.getImageData(canvas.width - qW, bhY, qW, bhH);
+        code = jsQR(brData.data, qW, bhH, { inversionAttempts: 'attemptBoth' });
+        if (code && code.data) return code.data;
+
+        // Region 5: Centered crop (central 70%)
+        const cw = Math.max(1, Math.round(canvas.width * 0.7));
+        const ch = Math.max(1, Math.round(canvas.height * 0.7));
+        const cx = Math.max(0, Math.round((canvas.width - cw) / 2));
+        const cy = Math.max(0, Math.round((canvas.height - ch) / 2));
+        const cropImgData = ctx.getImageData(cx, cy, cw, ch);
+        code = jsQR(cropImgData.data, cw, ch, { inversionAttempts: 'attemptBoth' });
+        if (code && code.data) return code.data;
       }
     }
     return null;
@@ -165,10 +192,10 @@ async function decodeQrCodeFromFile(file) {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-    // Attempt 1: Full frame (clamped to 1600px max for speed)
+    // Attempt 1: Full frame (clamped to 1400px max for speed)
     let w1 = origW;
     let h1 = origH;
-    const maxDim = 1600;
+    const maxDim = 1400;
     if (w1 > maxDim || h1 > maxDim) {
       const r = Math.min(maxDim / w1, maxDim / h1);
       w1 = Math.max(1, Math.round(w1 * r));
@@ -176,37 +203,51 @@ async function decodeQrCodeFromFile(file) {
     }
     canvas.width = w1;
     canvas.height = h1;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, w1, h1);
     ctx.drawImage(img, 0, 0, w1, h1);
     let fullImgData = ctx.getImageData(0, 0, w1, h1);
-    let code = jsQR(fullImgData.data, w1, h1, { inversionAttempts: 'dontInvert' });
+    let code = jsQR(fullImgData.data, w1, h1, { inversionAttempts: 'attemptBoth' });
     if (code && code.data) {
       canvas.width = 0; canvas.height = 0;
       return code.data;
     }
 
-    // Attempt 2: Centered crop (central 70% where the QR code sits)
+    // Attempt 2: Bottom half (certificate QR placement)
+    const bhY = Math.round(h1 * 0.45);
+    const bhH = h1 - bhY;
+    const bhData = ctx.getImageData(0, bhY, w1, bhH);
+    code = jsQR(bhData.data, w1, bhH, { inversionAttempts: 'attemptBoth' });
+    if (code && code.data) {
+      canvas.width = 0; canvas.height = 0;
+      return code.data;
+    }
+
+    // Attempt 3: Centered crop (central 70%)
     const cropRatio = 0.7;
     const cw = Math.max(1, Math.round(w1 * cropRatio));
     const ch = Math.max(1, Math.round(h1 * cropRatio));
     const cx = Math.max(0, Math.round((w1 - cw) / 2));
     const cy = Math.max(0, Math.round((h1 - ch) / 2));
     const cropImgData = ctx.getImageData(cx, cy, cw, ch);
-    code = jsQR(cropImgData.data, cw, ch, { inversionAttempts: 'dontInvert' });
+    code = jsQR(cropImgData.data, cw, ch, { inversionAttempts: 'attemptBoth' });
     if (code && code.data) {
       canvas.width = 0; canvas.height = 0;
       return code.data;
     }
 
-    // Attempt 3: Downscaled copy (clamped to 800px max or 0.5 scale)
-    const scale = Math.min(800 / origW, 800 / origH, 0.5);
+    // Attempt 4: Downscaled copy (clamped to 700px max)
+    const scale = Math.min(700 / origW, 700 / origH, 0.5);
     const w2 = Math.max(1, Math.round(origW * scale));
     const h2 = Math.max(1, Math.round(origH * scale));
     if (w2 !== w1 || h2 !== h1) {
       canvas.width = w2;
       canvas.height = h2;
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, w2, h2);
       ctx.drawImage(img, 0, 0, w2, h2);
       const downImgData = ctx.getImageData(0, 0, w2, h2);
-      code = jsQR(downImgData.data, w2, h2, { inversionAttempts: 'dontInvert' });
+      code = jsQR(downImgData.data, w2, h2, { inversionAttempts: 'attemptBoth' });
       if (code && code.data) {
         canvas.width = 0; canvas.height = 0;
         return code.data;
