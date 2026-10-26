@@ -212,22 +212,9 @@
       box-sizing: border-box;
     }
 
-    /* Watermark: SPECIMEN · NOT VALID (Reddish / Coral translucent) */
+    /* Watermark: Hidden per user request */
     .watermark {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%) rotate(-25deg);
-      font-family: var(--font-sans);
-      font-size: clamp(2.6rem, 6.2vw, 4.4rem);
-      font-weight: 800;
-      color: rgba(220, 38, 38, 0.14);
-      pointer-events: none;
-      user-select: none;
-      letter-spacing: 0.07em;
-      text-transform: uppercase;
-      white-space: nowrap;
-      z-index: 1;
+      display: none !important;
     }
 
     /* Sheet Header */
@@ -277,6 +264,12 @@
       font-family: var(--font-sans);
       line-height: 1.4;
       user-select: none;
+      cursor: pointer;
+      overflow: hidden;
+    }
+    .photo-holder-4cm.has-photo {
+      border: 1px solid #334155;
+      padding: 0;
     }
     .photo-holder-4cm .holder-title {
       font-size: 13.5px;
@@ -558,14 +551,22 @@
           />
           <span id="name-desc" class="demo-inline-note">Updates specimen text in real time (max 60 chars).</span>
         </div>
+
+        <div class="control-item">
+          <label for="photo-file-input">Holder photo (optional):</label>
+          <input
+            id="photo-file-input"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            aria-describedby="photo-desc"
+          />
+          <span id="photo-desc" class="demo-inline-note">Uploads chosen photo onto the 4 × 4 cm placeholder.</span>
+        </div>
       </div>
     </section>
 
-    <!-- Specimen Document Sheet: Matches Image Mockup Exactly -->
+    <!-- Document Certificate Sheet -->
     <article class="specimen-card" id="specimen-sheet" aria-labelledby="sheet-title">
-      <!-- Diagonal Watermark: SPECIMEN · NOT VALID -->
-      <div class="watermark" aria-hidden="true">SPECIMEN · NOT VALID</div>
-
       <!-- Header: Title on Left, 4x4 cm Image Holder on Right -->
       <header class="sheet-header">
         <div class="sheet-title-block">
@@ -579,6 +580,7 @@
           id="photo-holder"
           role="img"
           aria-label="Image holder, 4 by 4 centimetres"
+          title="Click to choose a photo"
         >
           <div class="holder-title">Image</div>
           <div class="holder-dim">4 × 4 cm</div>
@@ -638,11 +640,6 @@
           Scan with the WaseNet verifier. Specimen codes carry test data only and will show a verification result for demonstration.
         </div>
       </section>
-
-      <!-- Footer Disclaimer Line -->
-      <div class="sheet-disclaimer-line">
-        Specimen sheet. Not issued by any office. Not valid as identification or proof of ownership.
-      </div>
     </article>
   </main>
 
@@ -680,6 +677,27 @@
       const typed = (e.target.value || '').trim();
       holderNameValEl.textContent = typed || 'Sample Holder';
     });
+
+    // 3. Holder Photo Upload
+    const photoFileInput = document.getElementById('photo-file-input');
+    const photoHolderEl = document.getElementById('photo-holder');
+
+    if (photoHolderEl && photoFileInput) {
+      photoHolderEl.addEventListener('click', function() {
+        photoFileInput.click();
+      });
+
+      photoFileInput.addEventListener('change', function(e) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function() {
+          photoHolderEl.classList.add('has-photo');
+          photoHolderEl.innerHTML = `<img src="${reader.result}" alt="Holder portrait" style="width:100%; height:100%; object-fit:cover; display:block;" />`;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
 
     // Initialize with selected template
     updateDocumentType(typeSelect.value);

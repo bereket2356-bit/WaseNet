@@ -405,6 +405,238 @@
         margin-bottom: 16px;
       }
     }
+
+    /* Hidden print sheet for screen */
+    #print-sheet {
+      display: none;
+    }
+
+    /* Print Styles */
+    @page {
+      size: A4;
+      margin: 15mm;
+    }
+
+    @media print {
+      body {
+        background: #fff !important;
+        color: #0F172A !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+      .top,
+      .foot,
+      #app,
+      #main-content,
+      #root,
+      .noprint,
+      button,
+      .btn,
+      .icon-btn {
+        display: none !important;
+      }
+      #print-sheet {
+        display: block !important;
+        background: #fff !important;
+        color: #0F172A !important;
+        padding: 0 !important;
+        margin: 0 auto !important;
+        max-width: 760px !important;
+        width: 100% !important;
+        border: none !important;
+      }
+      .specimen-card,
+      .ps-sheet {
+        background: #FFFFFF !important;
+        color: #0F172A !important;
+        border: 1px solid #CBD5E1 !important;
+        border-radius: 10px !important;
+        box-shadow: none !important;
+        max-width: 100% !important;
+        width: 100% !important;
+        margin: 0 auto !important;
+        padding: 34px 36px 30px !important;
+        position: relative !important;
+        overflow: hidden !important;
+        box-sizing: border-box !important;
+        page-break-inside: avoid;
+      }
+      .watermark,
+      .ps-wm {
+        display: none !important;
+      }
+      .sheet-header,
+      .ps-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px;
+        position: relative;
+        z-index: 2;
+      }
+      .sheet-title-block {
+        flex: 1 1 auto;
+        padding-top: 4px;
+      }
+      .sheet-title,
+      .ps-head h2 {
+        font-family: var(--font-sans, "Atkinson Hyperlegible", system-ui, sans-serif);
+        font-size: 26px;
+        font-weight: 700;
+        color: #0F172A !important;
+        line-height: 1.2;
+        margin: 0 0 6px 0;
+      }
+      .sheet-subtitle,
+      .ps-sub {
+        font-size: 14px;
+        color: #64748B !important;
+        font-weight: 400;
+        line-height: 1.4;
+        margin: 0;
+      }
+      .photo-holder-4cm,
+      .ps-photo {
+        width: 4cm;
+        height: 4cm;
+        min-width: 4cm;
+        min-height: 4cm;
+        flex: none;
+        box-sizing: border-box;
+        border: 1px dashed #334155 !important;
+        background: #FFFFFF !important;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        color: #475569 !important;
+        font-family: var(--font-sans, "Atkinson Hyperlegible", system-ui, sans-serif);
+        line-height: 1.4;
+        user-select: none;
+        overflow: hidden;
+      }
+      .photo-holder-4cm.has-photo,
+      .ps-photo.has-photo {
+        border: 1px solid #334155 !important;
+        padding: 0 !important;
+      }
+      .photo-holder-4cm img,
+      .ps-photo img {
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: cover !important;
+        display: block !important;
+      }
+      .photo-holder-4cm .holder-title {
+        font-size: 13.5px;
+        font-weight: 400;
+        color: #475569 !important;
+      }
+      .photo-holder-4cm .holder-dim {
+        font-size: 12.5px;
+        font-weight: 400;
+        color: #475569 !important;
+      }
+      .sheet-divider-thick {
+        width: 100%;
+        height: 2px;
+        background: #0F172A !important;
+        margin: 20px 0 0 0;
+        position: relative;
+        z-index: 2;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      .sheet-fields,
+      .ps-grid {
+        display: flex;
+        flex-direction: column;
+        position: relative;
+        z-index: 2;
+      }
+      .field-row,
+      .ps-field {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+        padding: 14px 0;
+        border-bottom: 1px solid #E2E8F0 !important;
+      }
+      .field-col {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 0;
+      }
+      .field-label,
+      .ps-label {
+        font-size: 13px;
+        color: #64748B !important;
+        font-weight: 400;
+        line-height: 1.3;
+      }
+      .field-val,
+      .ps-val {
+        font-size: 16px;
+        font-weight: 700;
+        color: #0F172A !important;
+        line-height: 1.3;
+        overflow-wrap: anywhere;
+        word-break: break-all;
+      }
+      .fan-text {
+        letter-spacing: 0.02em;
+      }
+      .qr-row {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        margin-top: 24px;
+        margin-bottom: 24px;
+        position: relative;
+        z-index: 2;
+      }
+      .qr-placeholder-box,
+      .ps-qr {
+        width: 112px;
+        height: 112px;
+        min-width: 112px;
+        min-height: 112px;
+        flex: none;
+        box-sizing: border-box;
+        border: 1px dashed #334155 !important;
+        background: #FFFFFF !important;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 6px;
+        color: #475569 !important;
+        font-size: 12px;
+        font-weight: 400;
+        line-height: 1.35;
+        user-select: none;
+      }
+      .qr-explanation {
+        font-size: 14px;
+        color: #475569 !important;
+        line-height: 1.5;
+        max-width: 480px;
+      }
+      .sheet-disclaimer-line,
+      .ps-foot {
+        font-size: 13px;
+        color: #64748B !important;
+        line-height: 1.45;
+        margin-top: 8px;
+        position: relative;
+        z-index: 2;
+      }
+    }
   </style>
 </head>
 <body>
@@ -426,7 +658,7 @@
     </div>
   </header>
 
-  <main class="main-content wrap" id="main-content">
+  <main class="main-content wrap" id="app">
     <!-- View Container -->
     <div id="view-container"></div>
   </main>
@@ -441,6 +673,8 @@
   <!-- QRCode & jsQR Libraries -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.1/qrcode.min.js"></script>
   <script src="./lib/jsqr.js"></script>
+
+  <div id="print-sheet" aria-hidden="true" style="display: none;"></div>
   <script>
     // State
     let currentRoute = 'home';
@@ -448,6 +682,159 @@
     let authMode = 'choose';
     let holderPhoto = null;
     let activeCameraStream = null;
+    let currentIssuedDoc = null;
+
+    // Document type labels
+    const DOC_TYPES = {
+      dt_land: 'Land certificate',
+      dt_coop: 'Cooperative credential',
+      dt_birth: 'Birth record',
+      dt_permit: 'Local permit',
+      'Land certificate': 'Land certificate',
+      'Cooperative credential': 'Cooperative credential',
+      'Birth record': 'Birth record',
+      'Local permit': 'Local permit'
+    };
+
+    function getDocTypeLabel(type) {
+      return DOC_TYPES[type] || type || 'Document';
+    }
+
+    // HTML escape helper
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+    const esc = escapeHtml;
+
+    function formatDateDisplay(val) {
+      if (!val) return '—';
+      try {
+        const raw = String(val).split('T')[0].trim();
+        const parts = raw.split('-');
+        if (parts.length === 3) {
+          const year = parseInt(parts[0], 10);
+          const monthIdx = parseInt(parts[1], 10) - 1;
+          const day = parseInt(parts[2], 10);
+          const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          if (months[monthIdx] && !isNaN(day) && !isNaN(year)) {
+            return `${day} ${months[monthIdx]} ${year}`;
+          }
+        }
+      } catch (e) {}
+      return String(val);
+    }
+
+    function fillPrintSheet(d) {
+      let sheet = document.getElementById('print-sheet');
+      if (!sheet) {
+        sheet = document.createElement('div');
+        sheet.id = 'print-sheet';
+        sheet.setAttribute('aria-hidden', 'true');
+        sheet.style.display = 'none';
+        document.body.appendChild(sheet);
+      }
+      if (!d) return;
+
+      const docType = getDocTypeLabel(d.type || d.docType || d.doc_type);
+      const docId = d.doc_id || d.docId || d.id || '';
+      const holderName = d.holder_name || d.holder || d.holderName || '';
+      const fanRaw = d.holder_id || d.holderId || d.fan || '';
+      const holderFan = formatFan(fanRaw).formatted || fanRaw;
+      const issuerCode = d.issuer_code || d.issuer || d.issuerCode || 'SPEC-00-AA';
+      const issueDateRaw = d.issued_at || d.issued || d.issueDate || d.issue_date || '';
+      const expiryDateRaw = d.expires_at || d.expires || d.expiryDate || d.expiry_date || '';
+      const issueDateDisplay = formatDateDisplay(issueDateRaw);
+      const expiryDateDisplay = formatDateDisplay(expiryDateRaw);
+
+      const photo = d.photo || '';
+
+      sheet.innerHTML = `
+        <div class="specimen-card ps-sheet" role="region" aria-label="Document certificate sheet">
+          <!-- Header Block: Title, Subtitle, and 4x4cm Image Holder -->
+          <div class="sheet-header ps-head">
+            <div class="sheet-title-block">
+              <h2 class="sheet-title">${escapeHtml(docType)}</h2>
+              <p class="sheet-subtitle ps-sub">WaseNet specimen layout · Fictional data</p>
+            </div>
+            ${photo ? `
+              <div class="photo-holder-4cm ps-photo has-photo" role="img" aria-label="Holder photo">
+                <img src="${escapeHtml(photo)}" alt="Holder photo" style="width:100%; height:100%; object-fit:cover; display:block;" />
+              </div>
+            ` : `
+              <div class="photo-holder-4cm ps-photo" role="img" aria-label="Image holder, 4 by 4 centimetres">
+                <div class="holder-title">Image</div>
+                <div class="holder-dim">4 × 4 cm</div>
+              </div>
+            `}
+          </div>
+
+          <!-- Thick Horizontal Rule -->
+          <div class="sheet-divider-thick" aria-hidden="true"></div>
+
+          <!-- 3 Field Rows (2 columns per row) -->
+          <div class="sheet-fields ps-grid">
+            <!-- Row 1: Document ID and Holder Name -->
+            <div class="field-row ps-field">
+              <div class="field-col">
+                <span class="field-label ps-label">Document ID</span>
+                <span class="field-val ps-val">${escapeHtml(docId)}</span>
+              </div>
+              <div class="field-col">
+                <span class="field-label ps-label">Holder name</span>
+                <span class="field-val ps-val">${escapeHtml(holderName)}</span>
+              </div>
+            </div>
+
+            <!-- Row 2: Holder FAN ID and Issuer Code -->
+            <div class="field-row ps-field">
+              <div class="field-col">
+                <span class="field-label ps-label">Holder FAN ID</span>
+                <span class="field-val fan-text ps-val">${escapeHtml(holderFan)}</span>
+              </div>
+              <div class="field-col">
+                <span class="field-label ps-label">Issuer code</span>
+                <span class="field-val ps-val">${escapeHtml(issuerCode)}</span>
+              </div>
+            </div>
+
+            <!-- Row 3: Issue Date and Expiry Date -->
+            <div class="field-row ps-field">
+              <div class="field-col">
+                <span class="field-label ps-label">Issue date</span>
+                <span class="field-val ps-val">${escapeHtml(issueDateDisplay)}</span>
+              </div>
+              <div class="field-col">
+                <span class="field-label ps-label">Expiry date</span>
+                <span class="field-val ps-val">${escapeHtml(expiryDateDisplay)}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- QR Placeholder Section with text on the right -->
+          <div class="qr-row">
+            <div class="qr-placeholder-box ps-qr" role="img" aria-label="QR code placeholder">
+              <div>QR code</div>
+              <div>(generated on issue)</div>
+            </div>
+            <div class="qr-explanation">
+              Scan with the WaseNet verifier. Specimen codes carry test data only and will show a verification result for demonstration.
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function printIssuedDoc() {
+      if (!currentIssuedDoc) return;
+      fillPrintSheet(currentIssuedDoc);
+      window.print();
+    }
 
     function toggleTheme() {
       const current = document.documentElement.getAttribute('data-theme');
@@ -982,6 +1369,20 @@
       const docType = form.docType.value;
       const holder = form.holder.value;
       const docId = form.docId.value;
+      const issuerCode = form.issuer ? form.issuer.value : 'ET-AA-LAND-04';
+      const issueDate = form.issued ? form.issued.value : new Date().toISOString().split('T')[0];
+      const expiryDate = form.expires ? form.expires.value : new Date(Date.now() + 5*365*24*3600*1000).toISOString().split('T')[0];
+
+      currentIssuedDoc = {
+        doc_id: docId,
+        type: docType,
+        holder_name: holder,
+        holder_id: cleanFan,
+        issuer_code: issuerCode,
+        issued_at: issueDate,
+        expires_at: expiryDate,
+        photo: holderPhoto
+      };
 
       // Compact JWS token payload without photo (SRS 4.1)
       const payloadObj = {
@@ -989,8 +1390,8 @@
         type: docType,
         holder_name: holder,
         holder_id: cleanFan,
-        issued_at: new Date().toISOString(),
-        issuer_code: form.issuer.value
+        issued_at: issueDate,
+        issuer_code: issuerCode
       };
       const jws = 'eyJhbGciOiJFUzI1NiIsImtpZCI6Indhc2UtYWEtMjAyNi0wMSJ9.' + btoa(JSON.stringify(payloadObj)) + '.sig';
 
@@ -1007,17 +1408,17 @@
             </div>
           ` : ''}
           <dl class="rows" style="margin-top:16px;">
-            <div><dt>Document type</dt><dd>${docType}</dd></div>
-            <div><dt>Holder name</dt><dd>${holder}</dd></div>
+            <div><dt>Document type</dt><dd>${escapeHtml(docType)}</dd></div>
+            <div><dt>Holder name</dt><dd>${escapeHtml(holder)}</dd></div>
             <div><dt>Holder national ID (FAN)</dt><dd>${formatFan(cleanFan).formatted}</dd></div>
-            <div><dt>Document ID</dt><dd>${docId}</dd></div>
+            <div><dt>Document ID</dt><dd>${escapeHtml(docId)}</dd></div>
           </dl>
           <div style="display:flex; justify-content:center; margin:20px auto;">
             <canvas id="done-qr-canvas" width="240" height="240"></canvas>
           </div>
           <div style="display:flex; justify-content:center; gap:12px; margin-top:20px;">
-            <button class="btn outline" onclick="window.print()">Print</button>
-            <button class="btn" onclick="navigateTo('issue')">Issue another</button>
+            <button class="btn outline" type="button" onclick="printIssuedDoc()">Print</button>
+            <button class="btn" type="button" onclick="navigateTo('issue')">Issue another</button>
           </div>
         </div>
       `;
@@ -1033,6 +1434,9 @@
     }
 
     function navigateTo(route, params = {}) {
+      if (route === 'issue') {
+        currentIssuedDoc = null;
+      }
       currentRoute = route;
       window.location.hash = '#/' + route;
       renderView(route, params);
