@@ -65,6 +65,13 @@ class DocumentSigner(ABC):
         pass
 
 
+DEFAULT_ES256_PRIVATE_KEY_PEM = """-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg9vtcR74CFbqdkUvL
+YH/Lut9EE1t5SjxfoCjirG+TelahRANCAATD3KGwa5dx8yLyJw8Jth/kZOFtIwdo
+0GfZXl2V37mpeByRrF5E5XfNKbgzcKIBEYN1sv1EiPQfSkHXaBSpZZe3
+-----END PRIVATE KEY-----"""
+
+
 class ES256Signer(DocumentSigner):
     """
     Server-side ES256 (ECDSA P-256 with SHA-256) implementation.
@@ -76,16 +83,17 @@ class ES256Signer(DocumentSigner):
         self._private_key, self._public_key = self._initialize_keys(private_key_pem)
 
     def _initialize_keys(self, pem_str: str) -> Tuple[ec.EllipticCurvePrivateKey, ec.EllipticCurvePublicKey]:
-        if pem_str and pem_str.strip():
+        pem_to_use = pem_str.strip() if (pem_str and pem_str.strip()) else DEFAULT_ES256_PRIVATE_KEY_PEM
+        if pem_to_use:
             try:
-                priv = serialization.load_pem_private_key(pem_str.encode("utf-8"), password=None)
+                priv = serialization.load_pem_private_key(pem_to_use.encode("utf-8"), password=None)
                 if not isinstance(priv, ec.EllipticCurvePrivateKey):
                     raise ValueError("Loaded key is not an EllipticCurvePrivateKey")
                 return priv, priv.public_key()
             except Exception as e:
                 logger.warning(f"Failed to load provided private key PEM, generating fresh keypair: {e}")
 
-        # Generate a new P-256 keypair
+        # Fallback to generate a new P-256 keypair
         priv = ec.generate_private_key(ec.SECP256R1())
         return priv, priv.public_key()
 
