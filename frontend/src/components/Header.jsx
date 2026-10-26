@@ -23,13 +23,24 @@ export default function Header({ currentRoute, navigate }) {
     const handleAuthChange = () => {
       setUser(getCurrentUser());
     };
+    const updateHeaderHeight = () => {
+      const headerEl = document.querySelector('header.top');
+      if (headerEl) {
+        const h = headerEl.offsetHeight;
+        document.documentElement.style.setProperty('--header-height', `${h}px`);
+      }
+    };
+
+    updateHeaderHeight();
+    window.addEventListener('resize', updateHeaderHeight);
     window.addEventListener('storage', handleAuthChange);
     window.addEventListener('authchange', handleAuthChange);
     return () => {
+      window.removeEventListener('resize', updateHeaderHeight);
       window.removeEventListener('storage', handleAuthChange);
       window.removeEventListener('authchange', handleAuthChange);
     };
-  }, []);
+  }, [currentRoute, user]);
 
   const handleLogout = () => {
     logout();
