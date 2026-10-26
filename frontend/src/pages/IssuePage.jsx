@@ -4,6 +4,7 @@ import { getSigningProvider, IsolatedMockHardwareSigningProvider } from '../sign
 import { queueStore, drlStore, metaStore } from '../storage.js';
 import { syncRegistry, getSyncStatus } from '../sync.js';
 import { QrCodeGenerator } from '../qr-generator.js';
+import { fillPrintSheet } from '../utils/print-sheet.js';
 
 const newId = () => (crypto.randomUUID ? crypto.randomUUID()
   : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -679,7 +680,24 @@ export default function IssuePage({ navigate }) {
             {isOffline ? 'Saved. Waiting to sync.' : 'Created and synced'}
           </p>
           <div className="row-btns" style={{ justifyContent: 'center', marginTop: '20px' }}>
-            <button className="btn outline" type="button" onClick={() => window.print()}>
+            <button
+              className="btn outline"
+              type="button"
+              onClick={() => {
+                if (!issued) return;
+                fillPrintSheet({
+                  doc_id: issued.id,
+                  type: DOC_TYPES[issued.type] || issued.type,
+                  holder_name: issued.holder,
+                  holder_id: issued.holderId,
+                  photo: issued.photo,
+                  issuer_code: issued.issuer || 'ET-AA-LAND-04',
+                  issued_at: issued.issued,
+                  expires_at: issued.expires
+                });
+                window.print();
+              }}
+            >
               Print
             </button>
             <button className="btn" type="button" onClick={() => setIssued(null)}>

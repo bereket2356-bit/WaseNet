@@ -2,6 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import { useI18n } from '../i18n.jsx';
 import { getCurrentUser } from '../auth.js';
 import { QrCodeGenerator } from '../qr-generator.js';
+import { fillPrintSheet } from '../utils/print-sheet.js';
 
 export default function IssueDonePage({ routeParams, navigate }) {
   const { t } = useI18n();
@@ -27,6 +28,17 @@ export default function IssueDonePage({ routeParams, navigate }) {
   }, [doc]);
 
   const handlePrint = () => {
+    if (!doc || !doc.docId) return;
+    fillPrintSheet({
+      doc_id: doc.docId,
+      type: doc.type,
+      holder_name: doc.holderName,
+      holder_id: doc.holderId,
+      photo: doc.photo,
+      issuer_code: doc.issuer || 'ET-AA-LAND-04',
+      issued_at: doc.issued || new Date().toISOString().split('T')[0],
+      expires_at: doc.expires || new Date(Date.now() + 5*365*24*3600*1000).toISOString().split('T')[0]
+    });
     window.print();
   };
 
