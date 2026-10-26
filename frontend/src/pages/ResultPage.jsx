@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { verifyDocumentCredential } from '../crypto.js';
 import { keyStore, drlStore, auditStore } from '../storage.js';
+import { fetchApi } from '../api-config.js';
+
 
 const RESULTS_CONFIG = {
   valid: {
@@ -130,7 +132,7 @@ export default function ResultPage({ routeParams, navigate }) {
 
           if (isOnline) {
             try {
-              const res = await fetch(`/api/v1/documents/${encodeURIComponent(targetDocId)}`);
+              const res = await fetchApi(`/api/v1/documents/${encodeURIComponent(targetDocId)}`);
               if (res.status === 404) {
                 notInRecords = true;
               } else if (res.ok) {
@@ -179,7 +181,7 @@ export default function ResultPage({ routeParams, navigate }) {
             let isRevoked = dbRecord.sync_state === 'revoked';
             if (!isRevoked) {
               try {
-                const revRes = await fetch('/api/v1/revocations');
+                const revRes = await fetchApi('/api/v1/revocations');
                 if (revRes.ok) {
                   const revData = await revRes.json();
                   isRevoked = (revData.delta || []).some((r) => r.doc_id === targetDocId);
@@ -240,7 +242,7 @@ export default function ResultPage({ routeParams, navigate }) {
         }
       } else if (docId) {
         try {
-          const res = await fetch(`/api/v1/documents/${encodeURIComponent(docId)}`);
+          const res = await fetchApi(`/api/v1/documents/${encodeURIComponent(docId)}`);
           if (res.status === 404) {
             setActiveStatus('error');
             setCustomCfg({

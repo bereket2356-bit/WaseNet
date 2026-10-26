@@ -5,6 +5,7 @@ import { queueStore, drlStore, metaStore } from '../storage.js';
 import { syncRegistry, getSyncStatus } from '../sync.js';
 import { QrCodeGenerator } from '../qr-generator.js';
 import { fillPrintSheet } from '../utils/print-sheet.js';
+import { fetchApi } from '../api-config.js';
 
 const newId = () => (crypto.randomUUID ? crypto.randomUUID()
   : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -25,6 +26,18 @@ const DOC_TYPES = {
   dt_birth: 'Birth record',
   dt_permit: 'Local permit'
 };
+
+const DOC_TYPE_TO_SCHEMA = {
+  dt_land: 'land_certificate',
+  dt_coop: 'cooperative_credential',
+  dt_birth: 'birth_record',
+  dt_permit: 'local_permit',
+  'Land certificate': 'land_certificate',
+  'Cooperative credential': 'cooperative_credential',
+  'Birth record': 'birth_record',
+  'Local permit': 'local_permit'
+};
+
 
 const formatFan = (val) => {
   const digits = String(val || '').replace(/\D/g, '').slice(0, 16);
@@ -70,6 +83,7 @@ export default function IssuePage({ navigate }) {
   const [loginError, setLoginError] = useState('');
   const [dateError, setDateError] = useState('');
   const [nationalIdError, setNationalIdError] = useState('');
+  const [saveError, setSaveError] = useState('');
   const [holderPhoto, setHolderPhoto] = useState(null);
   const [photoError, setPhotoError] = useState('');
   const [photoAnnouncement, setPhotoAnnouncement] = useState('');
@@ -201,6 +215,7 @@ export default function IssuePage({ navigate }) {
     if (name === 'issued' || name === 'expires') {
       setDateError('');
     }
+    setSaveError('');
   };
 
   const handleNationalIdChange = (e) => {
@@ -208,6 +223,7 @@ export default function IssuePage({ navigate }) {
     const { digits, formatted } = formatFan(raw);
     setDocForm(prev => ({ ...prev, holderId: digits, holderIdDisplay: formatted }));
     if (nationalIdError) setNationalIdError('');
+    setSaveError('');
   };
 
   const handlePhotoChange = async (e) => {
@@ -349,6 +365,7 @@ export default function IssuePage({ navigate }) {
     e.preventDefault();
     setDateError('');
     setNationalIdError('');
+    setSaveError('');
 
     // 1. National ID validation: must contain exactly 16 digits
     const cleanId = String(docForm.holderId || '').replace(/\D/g, '');
@@ -396,11 +413,56 @@ export default function IssuePage({ navigate }) {
 
       if (!isCurrentlyOffline && navigator.onLine) {
         try {
-          const provider = getSigningProvider();
-          signedResult = await provider.signDocument(payload, 'wase-aa-2026-01');
-        } catch (err) {
-          const fallback = new IsolatedMockHardwareSigningProvider();
-          signedResult = await fallback.signDocument(payload, 'wase-aa-2026-01');
+          const mappedDocType = DOC_TYPE_TO_SCHEMA[docForm.docType] || 'land_certificate';
+          const reqPayload = {
+            id: docForm.docId,
+            doc_type: mappedDocType,
+            holder_name: docForm.holder,
+            holder_national_id: cleanId,
+            issue_date: docForm.issued,
+            expiry_date: docForm.expires,
+            attributes: {}
+          };
+
+          const res = await fetchApi('/api/v1/documents', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(reqPayload)
+          });
+
+          if (!res.ok) {
+            throw new Error('Save failed');
+          }
+
+          const serverDoc = await res.json();
+          const item = {
+            id: serverDoc.id || docForm.docId,
+            type: docForm.docType,
+            holder: docForm.holder,
+            holderId: cleanId,
+            photo: holderPhoto,
+            issued: docForm.issued,
+            expires: docForm.expires,
+            issuer: docForm.issuer,
+            jws: serverDoc.qr_payload || serverDoc.jws,
+            created: new Date().toLocaleString('en-GB', {
+              day: 'numeric',
+              month: 'short',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            })
+          };
+
+          setIsSigning(false);
+          setIssued(item);
+          return;
+        } catch (saveErr) {
+          setIsSigning(false);
+          setSaveError('The document could not be saved. Try again.');
+          return;
         }
       } else {
         const fallback = new IsolatedMockHardwareSigningProvider();
@@ -696,7 +758,7 @@ export default function IssuePage({ navigate }) {
                 }
                 setPrintError('');
                 try {
-                  const res = await fetch(`/api/v1/documents/${encodeURIComponent(issued.id)}`);
+                  const res = await fetchApi(`/api/v1/documents/${encodeURIComponent(issued.id)}`);
                   if (!res.ok) {
                     throw new Error('Could not fetch server record');
                   }
@@ -846,6 +908,11 @@ export default function IssuePage({ navigate }) {
                 {isSigning ? '...' : 'Sign and create document'}
               </button>
             </p>
+            {saveError && (
+              <p id="e-save" className="err" role="alert" style={{ marginTop: '12px' }}>
+                {saveError}
+              </p>
+            )}
             {isOffline && (
               <p className="muted" style={{ marginTop: '12px', fontSize: '15px' }}>
                 You're offline. This document will be saved and sent when you're back online.
