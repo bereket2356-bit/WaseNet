@@ -962,15 +962,59 @@
       });
     }
 
-    // ---------------- API Communications ---------------- //
-    async function fetchApi(endpoint, options = {}) {
-      const paths = [];
-      const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    // ---------------- API Communications (OnRender Backend) ---------------- //
+    const BACKEND_BASE = 'https://wasenet-backend.onrender.com';
+    let cachedAuthToken = null;
 
-      // 1. Direct path (relative to origin, works through Vite proxy or same-host deployment)
+    async function getAuthToken() {
+      if (cachedAuthToken) return cachedAuthToken;
+      const loginPayload = { username: 'admin', password: 'Admin@WaseNet2026!' };
+      const targets = [
+        '/api/v1/auth/login',
+        `${BACKEND_BASE}/api/v1/auth/login`
+      ];
+      for (const t of targets) {
+        try {
+          const res = await fetch(t, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(loginPayload)
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.access_token) {
+              cachedAuthToken = data.access_token;
+              return cachedAuthToken;
+            }
+          }
+        } catch (e) {}
+      }
+      return null;
+    }
+
+    async function fetchApi(endpoint, options = {}) {
+      const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+      const opt = { ...options, headers: { ...(options.headers || {}) } };
+
+      // Ensure Authorization header is present for document issuance/queue sync
+      if (cleanEndpoint.includes('/documents') && (opt.method === 'POST' || opt.method === 'PUT')) {
+        if (!opt.headers['Authorization']) {
+          const token = await getAuthToken();
+          if (token) {
+            opt.headers['Authorization'] = `Bearer ${token}`;
+          }
+        }
+      }
+
+      const paths = [];
+
+      // 1. Direct path (works through Vite proxy or same-host deployment)
       paths.push(cleanEndpoint);
 
-      // 2. Fallback to direct local backend port if running on Vite dev (5173) or file
+      // 2. Direct OnRender backend URL
+      paths.push(`${BACKEND_BASE}${cleanEndpoint}`);
+
+      // 3. Fallback to local 5000 if running
       if (window.location.port !== '5000') {
         paths.push(`http://localhost:5000${cleanEndpoint}`);
       }
@@ -978,8 +1022,10 @@
       let lastErr = null;
       for (const p of paths) {
         try {
-          const res = await fetch(p, options);
-          return res;
+          const res = await fetch(p, opt);
+          if (res.status < 500) {
+            return res;
+          }
         } catch (err) {
           lastErr = err;
         }
