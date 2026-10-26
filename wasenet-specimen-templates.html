@@ -21,7 +21,7 @@
       --danger: #A8322A;
       --header-bg: rgba(245, 246, 244, 0.85);
       --font-serif: "Newsreader", Georgia, serif;
-      --font-sans: "Atkinson Hyperlegible", system-ui, sans-serif;
+      --font-sans: "Atkinson Hyperlegible", system-ui, -apple-system, sans-serif;
     }
     [data-theme="dark"] {
       --bg: #121A1D;
@@ -45,6 +45,13 @@
       display: flex;
       flex-direction: column;
     }
+
+    /* Accessibility focus outline */
+    :focus-visible {
+      outline: 3px solid var(--accent);
+      outline-offset: 2px;
+    }
+
     header.top {
       position: sticky;
       top: 0;
@@ -88,66 +95,95 @@
     .top-links a:hover {
       color: var(--ink);
     }
+
     main.main-content {
       flex: 1 0 auto;
       padding-top: calc(64px + 24px);
       padding-bottom: 48px;
     }
+
+    .page-header {
+      margin-bottom: 20px;
+    }
+    .page-title {
+      font-family: var(--font-serif);
+      font-size: clamp(1.7rem, 4vw, 2.2rem);
+      font-weight: 500;
+      color: var(--ink);
+      margin-bottom: 8px;
+    }
+    .page-note {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+      background: var(--stage);
+      padding: 10px 14px;
+      border-radius: 8px;
+      border-left: 3px solid var(--accent);
+    }
+
+    /* Training & Demonstration Controls Panel */
     .controls-panel {
       background: var(--surface);
       border: 1px solid var(--line);
       border-radius: 16px;
-      padding: 24px 28px;
-      margin-bottom: 28px;
+      padding: 20px 24px;
+      margin-bottom: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .controls-row {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
       gap: 16px;
     }
-    .selector-group {
+    .control-item {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
       flex-wrap: wrap;
     }
-    .selector-group label {
+    .control-item label {
       font-weight: 700;
-      font-size: 15px;
+      font-size: 14px;
+      color: var(--ink);
     }
-    .selector-group select {
-      min-height: 46px;
-      padding: 10px 16px;
+    .control-item select,
+    .control-item input[type="text"] {
+      min-height: 44px;
+      padding: 8px 14px;
       font: inherit;
-      font-size: 15px;
+      font-size: 14.5px;
       color: var(--ink);
       background: var(--bg);
       border: 1px solid var(--line);
-      border-radius: 10px;
-      cursor: pointer;
-    }
-    .demo-note {
-      color: var(--muted);
-      font-size: 14px;
-      font-style: italic;
-      background: var(--stage);
-      padding: 8px 14px;
       border-radius: 8px;
-      border-left: 3px solid var(--accent);
     }
+    .control-item input[type="text"] {
+      width: 220px;
+    }
+    .demo-inline-note {
+      color: var(--muted);
+      font-size: 13.5px;
+      font-style: italic;
+    }
+
     .btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      min-height: 48px;
-      padding: 0 22px;
+      min-height: 44px;
+      padding: 0 20px;
       border-radius: 999px;
       border: 1px solid var(--ink);
       background: var(--ink);
       color: var(--on-ink);
       font: inherit;
       font-weight: 700;
-      font-size: 15px;
+      font-size: 14px;
       cursor: pointer;
       text-decoration: none;
     }
@@ -160,161 +196,187 @@
       border-color: var(--accent);
       color: #fff;
     }
-    /* Official Specimen Sheet */
+
+    /* Specimen Sheet Container */
     .specimen-card {
       background: var(--surface);
-      border: 2px solid var(--line);
-      border-radius: 16px;
-      padding: 36px 40px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 28px;
       position: relative;
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.04);
+      overflow: hidden;
     }
+
+    /* Watermark: SPECIMEN · NOT VALID (Decorative & aria-hidden) */
     .watermark {
       position: absolute;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%) rotate(-30deg);
-      font-size: clamp(3rem, 10vw, 6rem);
+      font-size: clamp(2.4rem, 6vw, 4.4rem);
       font-weight: 700;
-      color: rgba(45, 106, 79, 0.06);
+      color: rgba(45, 106, 79, 0.09);
       pointer-events: none;
-      letter-spacing: 0.1em;
+      letter-spacing: 0.08em;
       text-transform: uppercase;
-      font-family: var(--font-serif);
+      font-family: var(--font-sans);
       white-space: nowrap;
+      user-select: none;
     }
-    .specimen-header {
-      text-align: center;
-      border-bottom: 2px solid var(--line);
+
+    /* Sheet Header: Title on Left, 4x4 cm image holder on right, 12px gap */
+    .sheet-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      border-bottom: 1px solid var(--line);
       padding-bottom: 20px;
-      margin-bottom: 28px;
+      margin-bottom: 24px;
     }
-    .specimen-country {
-      font-size: 13px;
-      letter-spacing: 0.12em;
+    .sheet-title-block {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    .sheet-badge {
+      display: inline-block;
+      font-size: 12px;
+      letter-spacing: 0.08em;
       text-transform: uppercase;
-      color: var(--muted);
-      font-weight: 700;
-      margin-bottom: 4px;
-    }
-    .specimen-office {
-      font-size: 1.1rem;
       font-weight: 700;
       color: var(--accent);
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
-    .specimen-title {
+    .sheet-title {
       font-family: var(--font-serif);
-      font-size: clamp(1.6rem, 3.5vw, 2.2rem);
+      font-size: clamp(1.4rem, 3.2vw, 1.85rem);
       font-weight: 600;
       color: var(--ink);
-      letter-spacing: -0.01em;
+      line-height: 1.25;
     }
-    .specimen-body {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 32px;
-      align-items: start;
+    .sheet-sub {
+      font-size: 13.5px;
+      color: var(--muted);
+      margin-top: 4px;
     }
-    .specimen-left {
-      display: flex;
-      flex-direction: column;
-      gap: 24px;
-    }
-    .photo-and-name {
-      display: flex;
-      gap: 24px;
-      align-items: center;
-    }
-    /* 4x4 cm image holder */
+
+    /* 4x4 cm Image Holder (top right corner, square dashed placeholder, flex: none) */
     .photo-holder-4cm {
       width: 4cm;
       height: 4cm;
       min-width: 4cm;
       min-height: 4cm;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      overflow: hidden;
+      flex: none;
+      box-sizing: border-box;
+      border: 1.5px dashed var(--muted);
+      border-radius: 6px;
       background: var(--stage);
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
+      text-align: center;
+      padding: 6px;
+      gap: 4px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      user-select: none;
+    }
+    .photo-holder-4cm .holder-dim {
+      font-size: 11.5px;
+      font-weight: 400;
     }
     .photo-holder-4cm img {
       width: 100%;
       height: 100%;
       object-fit: cover;
       display: block;
+      border-radius: 4px;
     }
-    .holder-meta h3 {
-      font-size: 1.4rem;
-      font-weight: 700;
-      margin-bottom: 6px;
-    }
-    .holder-meta .fan-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      background: var(--stage);
-      padding: 4px 10px;
-      border-radius: 6px;
-      font-size: 14px;
-      font-weight: 700;
-      color: var(--ink);
-      font-family: monospace;
-      letter-spacing: 0.05em;
-    }
-    .meta-grid {
+
+    /* Field Labels and Fictional Sample Values (Two-column grid on desktop, one-column on phones) */
+    .fields-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      border-top: 1px solid var(--line);
-      padding-top: 20px;
+      gap: 18px 24px;
+      margin-bottom: 28px;
     }
-    .meta-item {
+    .field-item {
       display: flex;
       flex-direction: column;
-      gap: 2px;
+      gap: 3px;
     }
-    .meta-item dt {
-      font-size: 12.5px;
+    .field-item dt {
+      font-size: 12px;
       color: var(--muted);
       text-transform: uppercase;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.05em;
       font-weight: 700;
     }
-    .meta-item dd {
+    .field-item dd {
       font-size: 15px;
       font-weight: 700;
       color: var(--ink);
+      word-break: break-all;
     }
-    /* QR code section (minimum 240px and printable at no less than 3 cm wide) */
-    .specimen-right {
+    .fan-text {
+      font-family: monospace;
+      letter-spacing: 0.05em;
+    }
+
+    /* QR Placeholder Box (120x120px screen, 1.5px dashed border) */
+    .qr-section {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 16px;
+      background: var(--stage);
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      margin-bottom: 24px;
+    }
+    .qr-box-120 {
+      width: 120px;
+      height: 120px;
+      min-width: 120px;
+      min-height: 120px;
+      flex: none;
+      box-sizing: border-box;
+      border: 1.5px dashed var(--muted);
+      border-radius: 6px;
+      background: #FFFFFF;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 12px;
-      padding: 16px;
-      background: var(--surface);
-      border: 1px solid var(--line);
-      border-radius: 12px;
-    }
-    .qr-canvas-box {
-      width: 240px;
-      height: 240px;
-      display: flex;
-      align-items: center;
       justify-content: center;
-      background: #FFFFFF;
-      padding: 0;
+      text-align: center;
+      padding: 8px;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 11.5px;
+      font-weight: 700;
+      line-height: 1.3;
     }
-    .qr-caption {
+    .qr-desc {
+      font-size: 13.5px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    /* Sheet Footer Disclaimer */
+    .sheet-disclaimer {
+      border-top: 1px solid var(--line);
+      padding-top: 14px;
       font-size: 12px;
       color: var(--muted);
       text-align: center;
-      max-width: 240px;
       line-height: 1.4;
     }
+
     footer.foot {
       margin-top: 40px;
       border-top: 1px solid var(--line);
@@ -322,47 +384,87 @@
       color: var(--muted);
       font-size: 13px;
     }
-    @media (max-width: 768px) {
+
+    /* Mobile viewports */
+    @media (max-width: 620px) {
       .specimen-card {
-        padding: 24px 20px;
+        padding: 20px;
       }
-      .specimen-body {
-        grid-template-columns: 1fr;
-      }
-      .photo-and-name {
+      .sheet-header {
         flex-direction: column;
         align-items: flex-start;
       }
-      .meta-grid {
+      .fields-grid {
         grid-template-columns: 1fr;
+        gap: 14px;
       }
-      .specimen-right {
-        margin: 0 auto;
+      .qr-section {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .control-item input[type="text"] {
+        width: 100%;
       }
     }
+
+    /* Print styles */
+    @page {
+      size: A4;
+      margin: 15mm;
+    }
     @media print {
-      header.top, .controls-panel, footer.foot, .btn {
+      header.top,
+      .page-header,
+      .controls-panel,
+      footer.foot,
+      .btn {
         display: none !important;
       }
       body {
-        background: #fff !important;
-        color: #000 !important;
+        background: #ffffff !important;
+        color: #000000 !important;
       }
       main.main-content {
         padding: 0 !important;
+        margin: 0 !important;
       }
       .specimen-card {
-        border: 2px solid #000 !important;
+        border: 1px solid #000000 !important;
         box-shadow: none !important;
         page-break-inside: avoid;
+        margin: 0 auto !important;
+        padding: 24px !important;
+        max-width: 100% !important;
       }
-      .qr-canvas-box {
-        width: 3.5cm !important;
-        height: 3.5cm !important;
+      .watermark {
+        color: rgba(0, 0, 0, 0.08) !important;
       }
       .photo-holder-4cm {
         width: 4cm !important;
         height: 4cm !important;
+        min-width: 4cm !important;
+        min-height: 4cm !important;
+        border: 1.5px dashed #000000 !important;
+        background: #f7f7f7 !important;
+        color: #000000 !important;
+      }
+      .qr-box-120 {
+        border: 1.5px dashed #000000 !important;
+        padding: 12px !important;
+      }
+      .qr-section {
+        background: transparent !important;
+        border: 1px solid #000000 !important;
+      }
+      .field-item dt {
+        color: #555555 !important;
+      }
+      .field-item dd {
+        color: #000000 !important;
+      }
+      .sheet-disclaimer {
+        color: #444444 !important;
+        border-top-color: #000000 !important;
       }
     }
   </style>
@@ -380,195 +482,192 @@
   </header>
 
   <main class="main-content wrap" id="main-content">
+    <div class="page-header">
+      <h1 class="page-title">WaseNet Specimen Document Templates</h1>
+      <p class="page-note">
+        For demonstration and training only. Every sheet is marked SPECIMEN and contains fictional data. Real documents are printed on the issuing office's approved stock.
+      </p>
+    </div>
+
     <!-- Training / Demonstration Controls -->
-    <section class="controls-panel" aria-label="Template selector">
-      <div class="selector-group">
-        <label for="doc-type-select">Document template:</label>
-        <select id="doc-type-select">
-          <option value="dt_land">Land certificate</option>
-          <option value="dt_coop">Cooperative credential</option>
-          <option value="dt_birth">Birth record</option>
-          <option value="dt_permit">Local permit</option>
-        </select>
+    <section class="controls-panel" aria-label="Specimen demonstration controls">
+      <div class="controls-row">
+        <div class="control-item">
+          <label for="doc-type-select">Document type:</label>
+          <select id="doc-type-select">
+            <option value="dt_land">Land certificate</option>
+            <option value="dt_coop">Cooperative credential</option>
+            <option value="dt_birth">Birth record</option>
+            <option value="dt_permit">Local permit</option>
+          </select>
+          <span class="demo-inline-note">For demonstration only. Real verification shows the type as read from the code.</span>
+        </div>
+
+        <button type="button" class="btn outline" onclick="window.print()">
+          Print specimen
+        </button>
       </div>
 
-      <div class="demo-note">
-        For demonstration only. Real verification shows the type as read from the code.
+      <div class="controls-row">
+        <div class="control-item">
+          <label for="holder-name-input">Holder name (sample text only):</label>
+          <input
+            id="holder-name-input"
+            type="text"
+            maxlength="60"
+            placeholder="Sample Holder"
+            aria-describedby="name-desc"
+          />
+          <span id="name-desc" class="demo-inline-note">Updates specimen text in real time (max 60 chars).</span>
+        </div>
       </div>
-
-      <button type="button" class="btn outline" onclick="window.print()">
-        Print specimen
-      </button>
     </section>
 
-    <!-- Specimen Document Sheet -->
-    <article class="specimen-card" id="specimen-sheet" aria-labelledby="doc-heading">
-      <div class="watermark">SPECIMEN</div>
+    <!-- Specimen Document Sheet (Centered, max-width 720px) -->
+    <article class="specimen-card" id="specimen-sheet" aria-labelledby="sheet-title">
+      <!-- Watermark: SPECIMEN · NOT VALID (aria-hidden) -->
+      <div class="watermark" aria-hidden="true">SPECIMEN · NOT VALID</div>
 
-      <header class="specimen-header">
-        <div class="specimen-country">Federal Democratic Republic of Ethiopia</div>
-        <div class="specimen-office" id="specimen-office">Addis Ababa City Administration Land Bureau</div>
-        <h1 class="specimen-title" id="doc-heading">Official Land Holding Certificate</h1>
+      <!-- Sheet Header: Title on Left, 4x4 cm Image Holder on Right (12px gap) -->
+      <header class="sheet-header">
+        <div class="sheet-title-block">
+          <span class="sheet-badge" id="sheet-type-badge">Training Specimen</span>
+          <h2 class="sheet-title" id="sheet-title">Specimen Land Certificate</h2>
+          <p class="sheet-sub" id="sheet-sub">Fictional demonstration layout for authentication testing</p>
+        </div>
+
+        <!-- 4x4 cm Image Holder (top right corner, square dashed placeholder) -->
+        <div
+          class="photo-holder-4cm"
+          id="photo-holder"
+          role="img"
+          aria-label="Image holder, 4 by 4 centimetres"
+        >
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+          </svg>
+          <div>Image</div>
+          <div class="holder-dim">4 × 4 cm</div>
+        </div>
       </header>
 
-      <div class="specimen-body">
-        <div class="specimen-left">
-          <div class="photo-and-name">
-            <!-- 4x4 cm Image Holder -->
-            <div class="photo-holder-4cm" id="photo-container" aria-label="Holder photograph frame (4x4 cm)">
-              <svg id="default-photo-svg" viewBox="0 0 100 100" width="100%" height="100%" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect width="100" height="100" fill="#E6EBE8"/>
-                <circle cx="50" cy="38" r="20" fill="#A3B2AD"/>
-                <path d="M16 88C16 70 31 66 50 66C69 66 84 70 84 88" fill="#A3B2AD"/>
-              </svg>
-              <img id="holder-photo-img" src="" alt="Holder official portrait" style="display:none;" />
-            </div>
-
-            <div class="holder-meta">
-              <div style="font-size:12px; text-transform:uppercase; color:var(--muted); font-weight:700;">Authorized Credential Holder</div>
-              <h3 id="holder-name-val">Abebe Bikila</h3>
-              <div style="margin-top:6px;">
-                <span style="font-size:13px; color:var(--muted); font-weight:700;">Holder national ID (FAN): </span>
-                <span class="fan-badge" id="holder-fan-val">1024-5892-3401-7685</span>
-              </div>
-            </div>
-          </div>
-
-          <dl class="meta-grid">
-            <div class="meta-item">
-              <dt>Document ID</dt>
-              <dd id="doc-id-val">550e8400-e29b-41d4-a716-446655440000</dd>
-            </div>
-            <div class="meta-item">
-              <dt>Issuer Authority Code</dt>
-              <dd id="issuer-code-val">ET-AA-LAND-04</dd>
-            </div>
-            <div class="meta-item">
-              <dt>Issue Date</dt>
-              <dd id="issue-date-val">2026-10-01</dd>
-            </div>
-            <div class="meta-item">
-              <dt>Expiration Date</dt>
-              <dd id="expiry-date-val">2031-10-01</dd>
-            </div>
-          </dl>
+      <!-- Field Labels & Fictional Sample Values -->
+      <dl class="fields-grid">
+        <div class="field-item">
+          <dt>Document ID</dt>
+          <dd id="field-doc-id">00000000-0000-4000-8000-000000000000</dd>
         </div>
 
-        <div class="specimen-right">
-          <div class="qr-canvas-box">
-            <canvas id="qr-canvas" width="240" height="240" aria-label="Official WaseNet document QR code"></canvas>
-          </div>
-          <div class="qr-caption">
-            Level M error correction (FR-2.4)<br>
-            Scan with any standard verifier
-          </div>
+        <div class="field-item">
+          <dt>Holder name</dt>
+          <dd id="field-holder-name">Sample Holder</dd>
         </div>
-      </div>
+
+        <div class="field-item">
+          <dt>Holder national ID (FAN)</dt>
+          <dd id="field-holder-fan" class="fan-text">0000-0000-0000-0000</dd>
+        </div>
+
+        <div class="field-item">
+          <dt>Issuer code</dt>
+          <dd id="field-issuer-code">SPEC-00-AA</dd>
+        </div>
+
+        <div class="field-item">
+          <dt>Issue date</dt>
+          <dd id="field-issue-date">1 Jan 2026</dd>
+        </div>
+
+        <div class="field-item">
+          <dt>Expiry date</dt>
+          <dd id="field-expiry-date">1 Jan 2028</dd>
+        </div>
+      </dl>
+
+      <!-- QR Placeholder Box (120x120px screen, 1.5px dashed border) -->
+      <section class="qr-section" aria-label="QR Code placeholder explanation">
+        <div class="qr-box-120" role="img" aria-label="QR code placeholder box, 120 by 120 pixels">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="3" width="7" height="7"/>
+            <rect x="14" y="3" width="7" height="7"/>
+            <rect x="3" y="14" width="7" height="7"/>
+            <rect x="14" y="14" width="7" height="7"/>
+          </svg>
+          <div>QR code (generated on issue)</div>
+        </div>
+        <div class="qr-desc">
+          Scan with the WaseNet verifier. Specimen codes carry test data only and will show a verification result for demonstration.
+        </div>
+      </section>
+
+      <!-- Sheet Footer Disclaimer Line -->
+      <footer class="sheet-disclaimer">
+        Specimen sheet. Not issued by any office. Not valid as identification or proof of ownership.
+      </footer>
     </article>
   </main>
 
   <footer class="foot">
     <div class="wrap">
-      <p>WaseNet Document Authentication Prototype · Public Offices in Ethiopia</p>
-      <p>© 2026 INSA / Capstone Implementation</p>
+      <p>WaseNet Document Authentication Prototype · Training and Demonstration Tool</p>
+      <p>© 2026 INSA / Capstone Implementation · Fictional Data Only</p>
     </div>
   </footer>
 
-  <!-- QRCode library for standards-compliant Level M generation with 4 modules quiet zone -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.1/qrcode.min.js"></script>
   <script>
-    // Templates metadata configuration for the four document types
-    const TEMPLATES = {
+    // Four official specimen document templates configuration
+    const DOCUMENT_TYPES = {
       dt_land: {
-        type: 'Land certificate',
-        title: 'Official Land Holding Certificate',
-        office: 'Addis Ababa City Administration Land Bureau',
-        holder: 'Abebe Bikila',
-        fanId: '1024-5892-3401-7685',
-        docId: '550e8400-e29b-41d4-a716-446655440001',
-        issuer: 'ET-AA-LAND-04',
-        issued: '2026-10-01',
-        expires: '2031-10-01',
-        jwsPayload: 'eyJhbGciOiJFUzI1NiIsImtpZCI6Indhc2UtYWEtMjAyNi0wMSJ9.eyJkb2NfaWQiOiI1NTBlODQwMC1lMjliLTQxZDQtYTcxNi00NDY2NTU0NDAwMDEiLCJ0eXBlIjoiTGFuZCBjZXJ0aWZpY2F0ZSIsImhvbGRlcl9uYW1lIjoiQWJlYmUgQmlraWxhIiwiaG9sZGVyX2lkIjoiMTAyNDU4OTIzNDAxNzY4NSIsImlzc3VlZF9hdCI6IjIwMjYtMTAtMDFUMDk6MDA6MDBaIiwiZXhwaXJlc19hdCI6IjIwMzEtMTAtMDFUMTc6MDA6MDBaIiwiaXNzdWVyX2NvZGUiOiJFVExBTkQwNCJ9.G_m129hZ59-4kH'
+        title: 'Specimen Land Certificate',
+        badge: 'Land Registry Specimen',
+        sub: 'Fictional demonstration layout for authentication testing'
       },
       dt_coop: {
-        type: 'Cooperative credential',
-        title: 'Agricultural Cooperative Credential',
-        office: 'Oromia Regional Cooperative Promotion Agency',
-        holder: 'Chala Dejene',
-        fanId: '2048-1194-8203-9941',
-        docId: '770a1122-c31a-42d4-b912-112233440002',
-        issuer: 'ET-OR-COOP-02',
-        issued: '2026-10-05',
-        expires: '2029-10-05',
-        jwsPayload: 'eyJhbGciOiJFUzI1NiIsImtpZCI6Indhc2UtYWEtMjAyNi0wMSJ9.eyJkb2NfaWQiOiI3NzBhMTEyMi1jMzFhLTQyZDQtYjkxMi0xMTIyMzM0NDAwMDIiLCJ0eXBlIjoiQ29vcGVyYXRpdmUgY3JlZGVudGlhbCIsImhvbGRlcl9uYW1lIjoiQ2hhbGEgRGVqZW5lIiwiaG9sZGVyX2lkIjoiMjA0ODExOTQ4MjAzOTk0MSIsImlzc3VlZF9hdCI6IjIwMjYtMTAtMDVUMDk6MDA6MDBaIiwiZXhwaXJlc19hdCI6IjIwMjktMTAtMDVUMTc6MDA6MDBaIiwiaXNzdWVyX2NvZGUiOiJFVExBTkQwNCJ9.G_m129hZ59-4kH'
+        title: 'Specimen Cooperative Credential',
+        badge: 'Cooperative Agency Specimen',
+        sub: 'Fictional demonstration layout for authentication testing'
       },
       dt_birth: {
-        type: 'Birth record',
-        title: 'Vital Events Official Birth Record',
-        office: 'Federal Vital Events Registration Agency (Immigration & Vital)',
-        holder: 'Almaz Kebede',
-        fanId: '3092-4410-6721-5582',
-        docId: '881b2233-d42b-43e5-c823-223344550003',
-        issuer: 'ET-FDRE-VERA-01',
-        issued: '2026-10-10',
-        expires: '2036-10-10',
-        jwsPayload: 'eyJhbGciOiJFUzI1NiIsImtpZCI6Indhc2UtYWEtMjAyNi0wMSJ9.eyJkb2NfaWQiOiI4ODFiMjIzMy1kNDJiLTQzZTUtYzgyMy0yMjMzNDQ1NTAwMDMiLCJ0eXBlIjoiQmlydGggcmVjb3JkIiwiaG9sZGVyX25hbWUiOiJBbG1heiBLZWJlZGUiLCJob2xkZXJfaWQiOiIzMDkyNDQxMDY3MjE1NTgyIiwiaXNzdWVkX2F0IjoiMjAyNi0xMC0xMFQwOTowMDowMFoiLCJleHBpcmVzX2F0IjoiMjAzNi0xMC0xMFQxNzowMDowMFoiLCJpc3N1ZXJfY29kZSI6IkVUTEFORDA0In0.G_m129hZ59-4kH'
+        title: 'Specimen Birth Record',
+        badge: 'Vital Events Specimen',
+        sub: 'Fictional demonstration layout for authentication testing'
       },
       dt_permit: {
-        type: 'Local permit',
-        title: 'Sub-City Trade & Construction Permit',
-        office: 'Kirkos Sub-City Administration Trade Office',
-        holder: 'Dawit Yohannes',
-        fanId: '4109-8823-1490-3329',
-        docId: '992c3344-e53c-44f6-d734-334455660004',
-        issuer: 'ET-AA-KIRKOS-07',
-        issued: '2026-10-15',
-        expires: '2027-10-15',
-        jwsPayload: 'eyJhbGciOiJFUzI1NiIsImtpZCI6Indhc2UtYWEtMjAyNi0wMSJ9.eyJkb2NfaWQiOiI5OTJjMzM0NC1lNTNjLTQ0ZjYtZDczNC0zMzQ0NTU2NjAwMDQiLCJ0eXBlIjoiTG9jYWwgcGVybWl0IiwiaG9sZGVyX25hbWUiOiJEYXdpdCBZb2hhbm5lcyIsImhvbGRlcl9pZCI6IjQxMDk4ODIzMTQ5MDMzMjkiLCJpc3N1ZWRfYXQiOiIyMDI2LTEwLTE1VDA5OjAwOjAwWiIsImV4cGlyZXNfYXQiOiIyMDI3LTEwLTE1VDE3OjAwOjAwWiIsImlzc3Vlcl9jb2RlIjoiRVRMQU5EMDQifQ.G_m129hZ59-4kH'
+        title: 'Specimen Local Permit',
+        badge: 'Municipality Permit Specimen',
+        sub: 'Fictional demonstration layout for authentication testing'
       }
     };
 
-    function renderSpecimen(docKey) {
-      const doc = TEMPLATES[docKey] || TEMPLATES.dt_land;
+    const typeSelect = document.getElementById('doc-type-select');
+    const nameInput = document.getElementById('holder-name-input');
+    const sheetTitleEl = document.getElementById('sheet-title');
+    const sheetBadgeEl = document.getElementById('sheet-type-badge');
+    const sheetSubEl = document.getElementById('sheet-sub');
+    const holderNameValEl = document.getElementById('field-holder-name');
 
-      document.getElementById('specimen-office').textContent = doc.office;
-      document.getElementById('doc-heading').textContent = doc.title;
-      document.getElementById('holder-name-val').textContent = doc.holder;
-      document.getElementById('holder-fan-val').textContent = doc.fanId;
-      document.getElementById('doc-id-val').textContent = doc.docId;
-      document.getElementById('issuer-code-val').textContent = doc.issuer;
-      document.getElementById('issue-date-val').textContent = doc.issued;
-      document.getElementById('expiry-date-val').textContent = doc.expires;
-
-      // Render Level M QR Code with at least 4 modules quiet zone
-      const canvas = document.getElementById('qr-canvas');
-      if (window.QRCode && window.QRCode.toCanvas) {
-        window.QRCode.toCanvas(canvas, doc.jwsPayload, {
-          errorCorrectionLevel: 'M',
-          margin: 4,
-          width: 240,
-          color: { dark: '#1E2B30', light: '#FFFFFF' }
-        }, function(err) {
-          if (err) console.error('QR rendering error:', err);
-        });
-      }
+    // 1. Updating Document Type changes sheet title and layout labels without changing sample data values
+    function updateDocumentType(key) {
+      const typeInfo = DOCUMENT_TYPES[key] || DOCUMENT_TYPES.dt_land;
+      sheetTitleEl.textContent = typeInfo.title;
+      sheetBadgeEl.textContent = typeInfo.badge;
+      sheetSubEl.textContent = typeInfo.sub;
     }
 
-    const selectEl = document.getElementById('doc-type-select');
-    selectEl.addEventListener('change', function(e) {
-      renderSpecimen(e.target.value);
+    typeSelect.addEventListener('change', function(e) {
+      updateDocumentType(e.target.value);
     });
 
-    // Check if QRCode library is loaded; if not, retry shortly
-    function init() {
-      if (window.QRCode) {
-        renderSpecimen(selectEl.value);
-      } else {
-        setTimeout(init, 100);
-      }
-    }
-    init();
+    // 2. Holder Name Input: Safe textContent insertion (never HTML), default to "Sample Holder"
+    nameInput.addEventListener('input', function(e) {
+      const typed = (e.target.value || '').trim();
+      holderNameValEl.textContent = typed || 'Sample Holder';
+    });
+
+    // Initialize with default template
+    updateDocumentType(typeSelect.value);
   </script>
 </body>
 </html>
