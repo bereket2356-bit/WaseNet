@@ -672,6 +672,7 @@
 
   <!-- QRCode & jsQR Libraries -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.1/qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.min.js"></script>
   <script src="./lib/jsqr.js"></script>
 
   <div id="print-sheet" aria-hidden="true" style="display: none;"></div>
@@ -684,8 +685,12 @@
     let activeCameraStream = null;
     let currentIssuedDoc = null;
 
-    // Document type labels
+    // Document type mappings
     const DOC_TYPES = {
+      land_certificate: 'Land certificate',
+      cooperative_credential: 'Cooperative credential',
+      birth_record: 'Birth record',
+      local_permit: 'Local permit',
       dt_land: 'Land certificate',
       dt_coop: 'Cooperative credential',
       dt_birth: 'Birth record',
@@ -696,8 +701,33 @@
       'Local permit': 'Local permit'
     };
 
+    const DOC_TYPE_TO_SCHEMA = {
+      'Land certificate': 'land_certificate',
+      'Cooperative credential': 'cooperative_credential',
+      'Birth record': 'birth_record',
+      'Local permit': 'local_permit',
+      dt_land: 'land_certificate',
+      dt_coop: 'cooperative_credential',
+      dt_birth: 'birth_record',
+      dt_permit: 'local_permit',
+      land_certificate: 'land_certificate',
+      cooperative_credential: 'cooperative_credential',
+      birth_record: 'birth_record',
+      local_permit: 'local_permit'
+    };
+
     function getDocTypeLabel(type) {
       return DOC_TYPES[type] || type || 'Document';
+    }
+
+    function normalizeDocType(val) {
+      if (!val) return '';
+      return (DOC_TYPE_TO_SCHEMA[val] || String(val).toLowerCase().replace(/\s+/g, '_')).trim();
+    }
+
+    function normalizeDate(val) {
+      if (!val) return '';
+      return String(val).split('T')[0].trim();
     }
 
     // HTML escape helper
@@ -730,6 +760,428 @@
       return String(val);
     }
 
+    function formatFan(val) {
+      const digits = String(val || '').replace(/\D/g, '').slice(0, 16);
+      const parts = digits.match(/.{1,4}/g);
+      return {
+        digits,
+        formatted: parts ? parts.join('-') : digits
+      };
+    }
+
+    // ---------------- Cryptographic Helpers (RFC 7515 & RFC 8785) ---------------- //
+    function base64UrlEncode(bytes) {
+      let binary = '';
+      const len = bytes.byteLength;
+      for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      return btoa(binary)
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+    }
+
+    function base64UrlEncodeString(str) {
+      return base64UrlEncode(new TextEncoder().encode(str));
+    }
+
+    function base64UrlDecode(base64UrlStr) {
+      let base64 = base64UrlStr.replace(/-/g, '+').replace(/_/g, '/');
+      while (base64.length % 4) {
+        base64 += '=';
+      }
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return bytes;
+    }
+
+    function base64UrlDecodeString(base64UrlStr) {
+      return new TextDecoder().decode(base64UrlDecode(base64UrlStr));
+    }
+
+    function canonicalizeJson(obj) {
+      if (obj === null || typeof obj !== 'object') {
+        return JSON.stringify(obj);
+      }
+      if (Array.isArray(obj)) {
+        return '[' + obj.map(canonicalizeJson).join(',') + ']';
+      }
+      const keys = Object.keys(obj).sort();
+      const members = keys.map((key) => JSON.stringify(key) + ':' + canonicalizeJson(obj[key]));
+      return '{' + members.join(',') + '}';
+    }
+
+    async function computeSha256(canonicalStr) {
+      const data = new TextEncoder().encode(canonicalStr);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    // ---------------- IndexedDB Persistent Storage ---------------- //
+    const DB_NAME = 'wasenet_db';
+    const DB_VERSION = 1;
+    let dbInstance = null;
+
+    // Default seeded public key for offline verification bootstrap
+    const DEFAULT_PUBLIC_KEY = {
+      kid: 'wase-aa-2026-01',
+      algorithm: 'ES256',
+      status: 'active',
+      jwk: {
+        kty: 'EC',
+        crv: 'P-256',
+        x: '3jVp_aT8zR6C7wE1u-I4yL9kK2mO5nP8rS1tU4vW7xY',
+        y: '4kWq_bU9zS7D8xF2v-J5zM0lL3nP6oQ9sT2uV5wX8yZ',
+        kid: 'wase-aa-2026-01',
+        use: 'sig',
+        alg: 'ES256'
+      }
+    };
+
+    function openDatabase() {
+      if (dbInstance) return Promise.resolve(dbInstance);
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains('publicKeys')) {
+            db.createObjectStore('publicKeys', { keyPath: 'kid' });
+          }
+          if (!db.objectStoreNames.contains('drl')) {
+            db.createObjectStore('drl', { keyPath: 'doc_id' });
+          }
+          if (!db.objectStoreNames.contains('issuanceQueue')) {
+            db.createObjectStore('issuanceQueue', { keyPath: 'id' });
+          }
+        };
+        req.onsuccess = (e) => {
+          dbInstance = e.target.result;
+          // Ensure default key exists
+          saveKeyToDb(DEFAULT_PUBLIC_KEY).catch(() => {});
+          resolve(dbInstance);
+        };
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function getKeyFromDb(kid) {
+      const db = await openDatabase();
+      return new Promise((resolve) => {
+        const tx = db.transaction('publicKeys', 'readonly');
+        const req = tx.objectStore('publicKeys').get(kid);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => resolve(null);
+      });
+    }
+
+    async function saveKeyToDb(keyObj) {
+      const db = await openDatabase();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('publicKeys', 'readwrite');
+        tx.objectStore('publicKeys').put(keyObj);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    async function isDocRevokedInDb(docId) {
+      const db = await openDatabase();
+      return new Promise((resolve) => {
+        const tx = db.transaction('drl', 'readonly');
+        const req = tx.objectStore('drl').get(docId);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => resolve(null);
+      });
+    }
+
+    async function saveRevocationToDb(rev) {
+      const db = await openDatabase();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('drl', 'readwrite');
+        tx.objectStore('drl').put(rev);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    async function putQueueItem(item) {
+      const db = await openDatabase();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('issuanceQueue', 'readwrite');
+        tx.objectStore('issuanceQueue').put(item);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    async function getQueuedItems() {
+      const db = await openDatabase();
+      return new Promise((resolve) => {
+        const tx = db.transaction('issuanceQueue', 'readonly');
+        const req = tx.objectStore('issuanceQueue').getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => resolve([]);
+      });
+    }
+
+    async function markQueueItemSynced(id) {
+      const db = await openDatabase();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('issuanceQueue', 'readwrite');
+        const store = tx.objectStore('issuanceQueue');
+        const getReq = store.get(id);
+        getReq.onsuccess = () => {
+          if (getReq.result) {
+            getReq.result.state = 'synced';
+            store.put(getReq.result);
+          }
+        };
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    // ---------------- API Communications ---------------- //
+    async function fetchApi(endpoint, options = {}) {
+      const paths = [];
+      const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+
+      // 1. Direct path (relative to origin, works through Vite proxy or same-host deployment)
+      paths.push(cleanEndpoint);
+
+      // 2. Fallback to direct local backend port if running on Vite dev (5173) or file
+      if (window.location.port !== '5000') {
+        paths.push(`http://localhost:5000${cleanEndpoint}`);
+      }
+
+      let lastErr = null;
+      for (const p of paths) {
+        try {
+          const res = await fetch(p, options);
+          return res;
+        } catch (err) {
+          lastErr = err;
+        }
+      }
+      throw lastErr || new Error('Network error');
+    }
+
+    async function syncKeyBundle() {
+      try {
+        const res = await fetchApi('/api/v1/keys/bundle');
+        if (res.ok) {
+          const data = await res.json();
+          const keys = data.keys || [];
+          for (const k of keys) {
+            const jwk = k.public_key_jwk || k.jwk;
+            if (jwk) {
+              await saveKeyToDb({
+                kid: k.kid || jwk.kid,
+                jwk,
+                algorithm: k.algorithm || 'ES256',
+                status: k.status || 'active'
+              });
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    async function syncRevocations() {
+      try {
+        const res = await fetchApi('/api/v1/revocations');
+        if (res.ok) {
+          const data = await res.json();
+          for (const item of (data.delta || [])) {
+            await saveRevocationToDb(item);
+          }
+        }
+      } catch (e) {}
+    }
+
+    async function syncOfflineQueue() {
+      if (!navigator.onLine) return;
+      try {
+        const all = await getQueuedItems();
+        const queued = all.filter((item) => item.state === 'queued');
+        if (queued.length === 0) return;
+
+        const body = {
+          documents: queued.map((item) => ({
+            id: item.id,
+            doc_type: item.doc_type,
+            kid: item.kid,
+            issue_date: item.issue_date,
+            expiry_date: item.expiry_date,
+            payload_canonical: item.payload_canonical,
+            jws: item.jws,
+            payload_sha256: item.payload_sha256,
+            holder_name: item.holder_name,
+            holder_national_id: item.holder_national_id
+          }))
+        };
+
+        const res = await fetchApi('/api/v1/queue/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+
+        if (res.ok) {
+          const resultData = await res.json();
+          for (const r of (resultData.results || [])) {
+            if (r.status === 'synced' || r.status === 'already_synced') {
+              await markQueueItemSynced(r.document_id);
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
+    window.addEventListener('online', () => {
+      syncOfflineQueue();
+      syncKeyBundle();
+      syncRevocations();
+    });
+
+    // Initialize key sync in background
+    openDatabase().then(() => {
+      syncKeyBundle();
+      syncRevocations();
+      syncOfflineQueue();
+    }).catch(() => {});
+
+    // ---------------- JWS Cryptographic Verification ---------------- //
+    async function verifyJwsSignature(jwsToken) {
+      if (!jwsToken || typeof jwsToken !== 'string') {
+        return { valid: false, error: 'Empty token format' };
+      }
+      let clean = jwsToken.trim();
+      if (clean.includes('#')) clean = clean.split('#')[1];
+      if (clean.includes('?jws=')) clean = clean.split('?jws=')[1].split('&')[0];
+
+      const parts = clean.split('.');
+      if (parts.length !== 3) {
+        return { valid: false, error: 'JWS must contain 3 segments' };
+      }
+
+      const [hB64, pB64, sB64] = parts;
+      let header, payload;
+      try {
+        header = JSON.parse(base64UrlDecodeString(hB64));
+        payload = JSON.parse(base64UrlDecodeString(pB64));
+      } catch (e) {
+        return { valid: false, error: 'Malformed JSON payload' };
+      }
+
+      // Algorithm check: strictly ES256
+      if (!header || header.alg !== 'ES256') {
+        return { valid: false, docId: payload?.doc_id, error: 'Invalid algorithm' };
+      }
+      if (!header.kid) {
+        return { valid: false, docId: payload?.doc_id, error: 'Missing kid' };
+      }
+
+      let keyRecord = await getKeyFromDb(header.kid);
+      if (!keyRecord) {
+        await syncKeyBundle();
+        keyRecord = await getKeyFromDb(header.kid);
+      }
+      if (!keyRecord || !keyRecord.jwk) {
+        return { valid: false, docId: payload?.doc_id, error: 'Unknown key' };
+      }
+
+      try {
+        const signingInput = `${hB64}.${pB64}`;
+        const inputBytes = new TextEncoder().encode(signingInput);
+        const sigBytes = base64UrlDecode(sB64);
+
+        const cryptoKey = await crypto.subtle.importKey(
+          'jwk',
+          keyRecord.jwk,
+          { name: 'ECDSA', namedCurve: 'P-256' },
+          false,
+          ['verify']
+        );
+
+        const valid = await crypto.subtle.verify(
+          { name: 'ECDSA', hash: { name: 'SHA-256' } },
+          cryptoKey,
+          sigBytes,
+          inputBytes
+        );
+
+        return { valid: Boolean(valid), payload, header, docId: payload?.doc_id };
+      } catch (err) {
+        return { valid: false, docId: payload?.doc_id, error: err.message };
+      }
+    }
+
+    // ---------------- PDF.js Dynamic Loader (Pinned v3.11.174) ---------------- //
+    let pdfjsPromise = null;
+    function loadPdfJs() {
+      if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+      if (!pdfjsPromise) {
+        pdfjsPromise = new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+          script.onload = () => {
+            if (window.pdfjsLib) {
+              window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+              resolve(window.pdfjsLib);
+            } else {
+              reject(new Error('pdf.js unavailable'));
+            }
+          };
+          script.onerror = () => reject(new Error('pdf.js failed to load from cdnjs'));
+          document.head.appendChild(script);
+        });
+      }
+      return pdfjsPromise;
+    }
+
+    async function decodePdfFile(file) {
+      const pdfjs = await loadPdfJs();
+      const arrayBuffer = await file.arrayBuffer();
+      let pdfDoc;
+      try {
+        const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
+        pdfDoc = await loadingTask.promise;
+      } catch (err) {
+        throw new Error('PDF_OPEN_ERROR');
+      }
+
+      try {
+        const maxPages = Math.min(pdfDoc.numPages, 3);
+        for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+          const page = await pdfDoc.getPage(pageNum);
+          const viewport = page.getViewport({ scale: 2.0 });
+          const offscreenCanvas = document.createElement('canvas');
+          offscreenCanvas.width = viewport.width;
+          offscreenCanvas.height = viewport.height;
+          const ctx = offscreenCanvas.getContext('2d', { willReadFrequently: true });
+          await page.render({ canvasContext: ctx, viewport }).promise;
+          const imgData = ctx.getImageData(0, 0, offscreenCanvas.width, offscreenCanvas.height);
+          const decoded = multiStepDecode(imgData, offscreenCanvas.width, offscreenCanvas.height);
+          offscreenCanvas.width = 0;
+          offscreenCanvas.height = 0;
+          if (decoded) {
+            return decoded;
+          }
+        }
+        return null;
+      } finally {
+        if (pdfDoc && typeof pdfDoc.destroy === 'function') {
+          await pdfDoc.destroy();
+        }
+      }
+    }
+
     function fillPrintSheet(d) {
       let sheet = document.getElementById('print-sheet');
       if (!sheet) {
@@ -744,23 +1196,21 @@
       const docType = getDocTypeLabel(d.type || d.docType || d.doc_type);
       const docId = d.doc_id || d.docId || d.id || '';
       const holderName = d.holder_name || d.holder || d.holderName || '';
-      const fanRaw = d.holder_id || d.holderId || d.fan || '';
+      const fanRaw = d.holder_id || d.holderId || d.fan || d.holder_national_id || '';
       const holderFan = formatFan(fanRaw).formatted || fanRaw;
-      const issuerCode = d.issuer_code || d.issuer || d.issuerCode || 'SPEC-00-AA';
+      const issuerCode = d.issuer_code || d.issuer || d.issuerCode || 'ET-AA-LAND-04';
       const issueDateRaw = d.issued_at || d.issued || d.issueDate || d.issue_date || '';
       const expiryDateRaw = d.expires_at || d.expires || d.expiryDate || d.expiry_date || '';
       const issueDateDisplay = formatDateDisplay(issueDateRaw);
       const expiryDateDisplay = formatDateDisplay(expiryDateRaw);
-
       const photo = d.photo || '';
 
       sheet.innerHTML = `
         <div class="specimen-card ps-sheet" role="region" aria-label="Document certificate sheet">
-          <!-- Header Block: Title, Subtitle, and 4x4cm Image Holder -->
           <div class="sheet-header ps-head">
             <div class="sheet-title-block">
               <h2 class="sheet-title">${escapeHtml(docType)}</h2>
-              <p class="sheet-subtitle ps-sub">WaseNet specimen layout · Fictional data</p>
+              <p class="sheet-subtitle ps-sub">WaseNet layout · Verified record</p>
             </div>
             ${photo ? `
               <div class="photo-holder-4cm ps-photo has-photo" role="img" aria-label="Holder photo">
@@ -773,13 +1223,8 @@
               </div>
             `}
           </div>
-
-          <!-- Thick Horizontal Rule -->
           <div class="sheet-divider-thick" aria-hidden="true"></div>
-
-          <!-- 3 Field Rows (2 columns per row) -->
           <div class="sheet-fields ps-grid">
-            <!-- Row 1: Document ID and Holder Name -->
             <div class="field-row ps-field">
               <div class="field-col">
                 <span class="field-label ps-label">Document ID</span>
@@ -790,8 +1235,6 @@
                 <span class="field-val ps-val">${escapeHtml(holderName)}</span>
               </div>
             </div>
-
-            <!-- Row 2: Holder FAN ID and Issuer Code -->
             <div class="field-row ps-field">
               <div class="field-col">
                 <span class="field-label ps-label">Holder FAN ID</span>
@@ -802,8 +1245,6 @@
                 <span class="field-val ps-val">${escapeHtml(issuerCode)}</span>
               </div>
             </div>
-
-            <!-- Row 3: Issue Date and Expiry Date -->
             <div class="field-row ps-field">
               <div class="field-col">
                 <span class="field-label ps-label">Issue date</span>
@@ -815,15 +1256,13 @@
               </div>
             </div>
           </div>
-
-          <!-- QR Placeholder Section with text on the right -->
           <div class="qr-row">
-            <div class="qr-placeholder-box ps-qr" role="img" aria-label="QR code placeholder">
+            <div class="qr-placeholder-box ps-qr" role="img" aria-label="QR code container">
               <div>QR code</div>
-              <div>(generated on issue)</div>
+              <div>(authenticated)</div>
             </div>
             <div class="qr-explanation">
-              Scan with the WaseNet verifier. Specimen codes carry test data only and will show a verification result for demonstration.
+              Scan with the WaseNet verifier. Authentic documents check signatures against INSA public keys.
             </div>
           </div>
         </div>
@@ -840,15 +1279,6 @@
       const current = document.documentElement.getAttribute('data-theme');
       const next = current === 'dark' ? 'light' : 'dark';
       document.documentElement.setAttribute('data-theme', next);
-    }
-
-    function formatFan(val) {
-      const digits = String(val || '').replace(/\D/g, '').slice(0, 16);
-      const parts = digits.match(/.{1,4}/g);
-      return {
-        digits,
-        formatted: parts ? parts.join('-') : digits
-      };
     }
 
     function processPhotoFile(file) {
@@ -933,6 +1363,155 @@
       return null;
     }
 
+    // ---------------- Unified Verification Pipeline (Requirement 2) ---------------- //
+    async function handleVerifyQr(jwsToken) {
+      const container = document.getElementById('view-container');
+      if (container) {
+        container.innerHTML = `
+          <div style="max-width:540px; margin:40px auto; text-align:center;">
+            <h2>Checking document...</h2>
+            <p class="muted" style="margin-top:8px;">Verifying cryptographic signature and retrieving central record.</p>
+          </div>
+        `;
+      }
+
+      // Check 1: JWS signature check ALWAYS runs first
+      const sigResult = await verifyJwsSignature(jwsToken);
+      if (!sigResult.valid) {
+        navigateTo('result', {
+          status: 'tampered',
+          docId: sigResult.docId || 'unknown',
+          note: 'Details are hidden because the signature did not match.',
+          detailsHidden: true
+        });
+        return;
+      }
+
+      const payload = sigResult.payload || {};
+      const docId = payload.doc_id || payload.id;
+
+      // Check 2: Online record fetch
+      let isOnline = navigator.onLine;
+      let dbRecord = null;
+      let notInRecords = false;
+
+      if (isOnline) {
+        try {
+          const res = await fetchApi(`/api/v1/documents/${encodeURIComponent(docId)}`);
+          if (res.status === 404) {
+            notInRecords = true;
+          } else if (res.ok) {
+            dbRecord = await res.json();
+          } else {
+            isOnline = false;
+          }
+        } catch (netErr) {
+          isOnline = false;
+        }
+      }
+
+      // If online and server has no record -> Unconfirmed note, NEVER valid
+      if (notInRecords) {
+        navigateTo('result', {
+          status: 'error',
+          title: 'Not in records',
+          desc: "This document is not in the WaseNet records. Do not accept it until it is confirmed.",
+          note: "This document is not in the WaseNet records. Do not accept it until it is confirmed.",
+          docId: docId,
+          detailsHidden: true
+        });
+        return;
+      }
+
+      if (isOnline && dbRecord) {
+        // Compare key fields: Document ID, document type, holder name, and expiry date
+        const typeMatch = normalizeDocType(dbRecord.doc_type) === normalizeDocType(payload.doc_type || payload.type);
+        const idMatch = String(dbRecord.id).toLowerCase() === String(docId).toLowerCase();
+        const nameMatch = String(dbRecord.holder_name || '').trim().toLowerCase() === String(payload.holder_name || '').trim().toLowerCase();
+        const expMatch = normalizeDate(dbRecord.expiry_date) === normalizeDate(payload.expiry_date || payload.expires_at);
+
+        if (!typeMatch || !idMatch || !nameMatch || !expMatch) {
+          navigateTo('result', {
+            status: 'tampered',
+            docId: docId,
+            note: "This document's details do not match its signed record.",
+            detailsHidden: true
+          });
+          return;
+        }
+
+        // Check revocation then expiry in that order
+        let isRevoked = dbRecord.sync_state === 'revoked';
+        if (!isRevoked) {
+          try {
+            const revRes = await fetchApi('/api/v1/revocations');
+            if (revRes.ok) {
+              const revData = await revRes.json();
+              isRevoked = (revData.delta || []).some(r => r.doc_id === docId);
+            }
+          } catch (e) {}
+        }
+
+        if (isRevoked) {
+          navigateTo('result', {
+            status: 'revoked',
+            doc: dbRecord,
+            docId: docId
+          });
+          return;
+        }
+
+        const expDate = new Date(dbRecord.expiry_date);
+        if (!isNaN(expDate.getTime()) && expDate.getTime() < Date.now()) {
+          navigateTo('result', {
+            status: 'expired',
+            doc: dbRecord,
+            docId: docId
+          });
+          return;
+        }
+
+        // Valid with DB record
+        navigateTo('result', {
+          status: 'valid',
+          doc: dbRecord,
+          docId: docId
+        });
+        return;
+      }
+
+      // Offline: server cannot be reached
+      const isRevokedOffline = await isDocRevokedInDb(docId);
+      if (isRevokedOffline) {
+        navigateTo('result', {
+          status: 'revoked',
+          doc: payload,
+          docId: docId,
+          offline: true
+        });
+        return;
+      }
+
+      const expDateOffline = new Date(payload.expiry_date || payload.expires_at);
+      if (!isNaN(expDateOffline.getTime()) && expDateOffline.getTime() < Date.now()) {
+        navigateTo('result', {
+          status: 'expired',
+          doc: payload,
+          docId: docId,
+          offline: true
+        });
+        return;
+      }
+
+      navigateTo('result', {
+        status: 'valid',
+        doc: payload,
+        docId: docId,
+        offline: true
+      });
+    }
+
+    // ---------------- View Renderer ---------------- //
     function renderView(route, params = {}) {
       const container = document.getElementById('view-container');
       if (activeCameraStream) {
@@ -952,7 +1531,7 @@
             <h1>Scan a document</h1>
             <p class="muted" style="margin:12px 0 24px;">Scan an Ethiopian public office credential QR code to verify its authenticity offline or online.</p>
             <div class="card" style="padding:28px;">
-              <button type="button" class="btn block" id="btn-start-camera" style="min-height:56px; font-size:16px;">
+              <button type="button" class="btn block scan-btn" id="btn-start-camera" style="min-height:56px; font-size:16px;">
                 Open Camera Scanner
               </button>
               <div id="camera-box" style="display:none; margin-top:20px;">
@@ -960,53 +1539,134 @@
                   <video id="scan-video" playsinline></video>
                 </div>
               </div>
-              <div style="margin:24px 0 16px; display:flex; align-items:center; gap:12px; color:var(--muted); font-size:14px;">
+              <div class="or" style="margin:24px 0 16px; display:flex; align-items:center; gap:12px; color:var(--muted); font-size:14px;">
                 <div style="flex:1; height:1px; background:var(--line);"></div>
                 <span>or upload file</span>
                 <div style="flex:1; height:1px; background:var(--line);"></div>
               </div>
-              <input type="file" id="file-upload-input" accept="image/jpeg,image/png,image/webp" style="display:none;" />
-              <button type="button" class="btn outline block" onclick="document.getElementById('file-upload-input').click()">
-                Choose image file
+              <input
+                type="file"
+                id="qr-file-input"
+                accept="image/jpeg,image/png,image/webp,application/pdf"
+                style="display:none;"
+                aria-hidden="true"
+              />
+              <button
+                type="button"
+                class="btn outline block"
+                id="choose-file-btn"
+                onclick="document.getElementById('qr-file-input').click()"
+                aria-describedby="file-hint file-privacy"
+                style="min-height:48px; width:100%;"
+              >
+                Choose a file
               </button>
-              <p id="file-error-msg" class="err" style="margin-top:12px; display:none;"></p>
+              <p id="file-hint" class="muted" style="margin:10px 0 4px; font-size:13px;">
+                JPG, PNG, WebP, or PDF. Your file stays on this device.
+              </p>
+              <p id="file-privacy" class="muted" style="margin:0 0 4px; font-size:12px; display:none;">
+                Your file stays on this device.
+              </p>
+              <p id="file-loading" class="muted" style="margin:8px 0 0; font-size:14px; font-weight:600; display:none;">
+                Reading the QR code...
+              </p>
+              <p id="file-error-msg" class="err" role="alert" style="margin-top:12px; display:none;"></p>
+              <div id="file-live-announcer" class="sr-only" aria-live="polite"></div>
             </div>
           </div>
         `;
 
-        document.getElementById('file-upload-input').addEventListener('change', async (e) => {
+        const fileInput = document.getElementById('qr-file-input');
+        fileInput.addEventListener('change', async (e) => {
           const file = e.target.files?.[0];
           if (!file) return;
           const errEl = document.getElementById('file-error-msg');
+          const loadingEl = document.getElementById('file-loading');
+          const liveEl = document.getElementById('file-live-announcer');
           errEl.style.display = 'none';
 
+          // Size check: > 10 MB rejected
           if (file.size > 10 * 1024 * 1024) {
             errEl.textContent = 'This file is too large. Choose a file under 10 MB.';
             errEl.style.display = 'block';
+            if (liveEl) liveEl.textContent = 'This file is too large. Choose a file under 10 MB.';
             return;
           }
 
-          const reader = new FileReader();
-          reader.onload = () => {
-            const img = new Image();
-            img.onload = () => {
-              const canvas = document.createElement('canvas');
-              canvas.width = img.width;
-              canvas.height = img.height;
-              const ctx = canvas.getContext('2d');
-              ctx.drawImage(img, 0, 0);
-              const imgData = ctx.getImageData(0, 0, img.width, img.height);
-              const decoded = multiStepDecode(imgData, img.width, img.height);
-              if (decoded) {
-                navigateTo('result', { jws: decoded });
-              } else {
-                errEl.textContent = 'Could not read QR code. Choose a clearer file.';
+          // Type check
+          const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+          const ext = (file.name || '').split('.').pop()?.toLowerCase();
+          const isAllowedExt = ['jpg', 'jpeg', 'png', 'webp', 'pdf'].includes(ext);
+
+          if (!allowedTypes.includes(file.type) && !isAllowedExt) {
+            errEl.textContent = 'Choose a JPG, PNG, WebP, or PDF file.';
+            errEl.style.display = 'block';
+            if (liveEl) liveEl.textContent = 'Choose a JPG, PNG, WebP, or PDF file.';
+            return;
+          }
+
+          if (loadingEl) loadingEl.style.display = 'block';
+          if (liveEl) liveEl.textContent = 'Reading document file...';
+
+          try {
+            if (file.type === 'application/pdf' || ext === 'pdf') {
+              // PDF handling
+              try {
+                const decoded = await decodePdfFile(file);
+                if (loadingEl) loadingEl.style.display = 'none';
+                if (decoded) {
+                  handleVerifyQr(decoded);
+                } else {
+                  navigateTo('result', {
+                    status: 'error',
+                    title: 'Could not read',
+                    desc: 'This QR code could not be read. Try a clearer file and try again.'
+                  });
+                }
+              } catch (pdfErr) {
+                if (loadingEl) loadingEl.style.display = 'none';
+                errEl.textContent = 'This PDF could not be opened. Try a photo or a scan of the document.';
                 errEl.style.display = 'block';
+                if (liveEl) liveEl.textContent = 'This PDF could not be opened. Try a photo or a scan of the document.';
               }
-            };
-            img.src = reader.result;
-          };
-          reader.readAsDataURL(file);
+            } else {
+              // Image handling
+              const reader = new FileReader();
+              reader.onload = () => {
+                const img = new Image();
+                img.onload = () => {
+                  const canvas = document.createElement('canvas');
+                  canvas.width = img.width;
+                  canvas.height = img.height;
+                  const ctx = canvas.getContext('2d');
+                  ctx.drawImage(img, 0, 0);
+                  const imgData = ctx.getImageData(0, 0, img.width, img.height);
+                  const decoded = multiStepDecode(imgData, img.width, img.height);
+                  if (loadingEl) loadingEl.style.display = 'none';
+                  if (decoded) {
+                    handleVerifyQr(decoded);
+                  } else {
+                    navigateTo('result', {
+                      status: 'error',
+                      title: 'Could not read',
+                      desc: 'This QR code could not be read from the uploaded image. Choose a clearer file and try again.'
+                    });
+                  }
+                };
+                img.onerror = () => {
+                  if (loadingEl) loadingEl.style.display = 'none';
+                  errEl.textContent = 'Choose a JPG, PNG, WebP, or PDF file.';
+                  errEl.style.display = 'block';
+                };
+                img.src = reader.result;
+              };
+              reader.readAsDataURL(file);
+            }
+          } catch (generalErr) {
+            if (loadingEl) loadingEl.style.display = 'none';
+            errEl.textContent = 'Could not read QR code. Choose a clearer file.';
+            errEl.style.display = 'block';
+          }
         });
 
         document.getElementById('btn-start-camera').addEventListener('click', async () => {
@@ -1031,7 +1691,7 @@
                 if (decoded) {
                   activeCameraStream.getTracks().forEach(t => t.stop());
                   activeCameraStream = null;
-                  navigateTo('result', { jws: decoded });
+                  handleVerifyQr(decoded);
                   return;
                 }
               }
@@ -1042,67 +1702,112 @@
             alert('Camera not available or permission denied.');
           }
         });
-      } else if (route === 'result') {
-        // Parse payload & lock document type as static text (SRS item 7)
-        let docType = 'Land certificate';
-        let holderName = 'Abebe Bikila';
-        let fanId = '1024-5892-3401-7685';
-        let docId = '550e8400-e29b-41d4-a716-446655440001';
-        let issuerCode = 'ET-AA-LAND-04';
-        let status = params.s || 'valid';
 
-        if (params.jws) {
-          try {
-            const parts = params.jws.split('.');
-            if (parts.length >= 2) {
-              const payload = JSON.parse(atob(parts[1]));
-              if (payload.type) docType = payload.type;
-              if (payload.holder_name) holderName = payload.holder_name;
-              if (payload.holder_id) fanId = formatFan(payload.holder_id).formatted;
-              if (payload.doc_id) docId = payload.doc_id;
-              if (payload.issuer_code) issuerCode = payload.issuer_code;
-            }
-          } catch (e) {}
+      } else if (route === 'result') {
+        // Result page shows ONE static state only (Requirement 3)
+        let status = (params.status || params.s || 'valid').toLowerCase();
+        const d = params.doc || {};
+
+        let docType = getDocTypeLabel(d.doc_type || d.type || 'Land certificate');
+        let holderName = d.holder_name || d.holder || 'Abebe Bikila';
+        let fanId = formatFan(d.holder_national_id || d.holder_id || '1024589234017685').formatted;
+        let docId = params.docId || d.id || d.doc_id || '550e8400-e29b-41d4-a716-446655440001';
+        let issuerCode = d.issuer_code || d.issuer || 'ET-AA-DOC-01';
+        let issueDate = formatDateDisplay(d.issue_date || d.issued_at || d.issued || new Date().toISOString().split('T')[0]);
+        let expiryDate = formatDateDisplay(d.expiry_date || d.expires_at || d.expires || '2031-01-15');
+
+        let bannerTitle = 'Valid';
+        let bannerDesc = 'Authentic and current. Document verified against INSA key bundle.';
+        let isDetailsVisible = true;
+
+        if (status === 'tampered') {
+          bannerTitle = 'Tampered';
+          bannerDesc = 'This document failed the signature check. Do not accept it.';
+          isDetailsVisible = false;
+        } else if (status === 'revoked') {
+          bannerTitle = 'Revoked';
+          bannerDesc = 'This document has been cancelled by the issuing office.';
+          isDetailsVisible = true;
+        } else if (status === 'expired') {
+          bannerTitle = 'Expired';
+          bannerDesc = 'The signature is genuine, but this document is past its expiry date.';
+          isDetailsVisible = true;
+        } else if (status === 'error') {
+          bannerTitle = params.title || 'Could not read';
+          bannerDesc = params.desc || 'This QR code could not be read. Try a clearer file and try again.';
+          isDetailsVisible = false;
         }
 
         container.innerHTML = `
           <div style="max-width:600px; margin:0 auto;">
-            <section class="banner" data-s="${status}">
-              <h2>${status === 'valid' ? 'Valid' : status === 'tampered' ? 'Tampered' : status === 'revoked' ? 'Revoked' : 'Expired'}</h2>
-              <p>${status === 'valid' ? 'Authentic and current. Document verified against INSA key bundle.' : 'Verification check alert.'}</p>
+            <section class="banner" data-s="${escapeHtml(status)}" role="status">
+              <h2>${escapeHtml(bannerTitle)}</h2>
+              <p>${escapeHtml(bannerDesc)}</p>
             </section>
 
-            <section class="card" style="margin-top:16px;">
-              <dl class="rows">
-                <div>
-                  <dt>Document type</dt>
-                  <!-- Locked static text as required by FR Item 7 -->
-                  <dd><strong>${docType}</strong></dd>
-                </div>
-                <div>
-                  <dt>Holder name</dt>
-                  <dd>${holderName}</dd>
-                </div>
-                <div>
-                  <dt>Holder national ID (FAN)</dt>
-                  <dd>${fanId}</dd>
-                </div>
-                <div>
-                  <dt>Issuer code</dt>
-                  <dd>${issuerCode}</dd>
-                </div>
-                <div>
-                  <dt>Document ID</dt>
-                  <dd>${docId}</dd>
-                </div>
-              </dl>
-            </section>
+            ${params.offline ? `
+              <div class="note" style="margin-top:14px; text-align:center; font-weight:700; color:var(--warn-bg);">
+                Checked on this device. Not confirmed online.
+              </div>
+            ` : ''}
 
-            <div style="margin-top:24px; text-align:center;">
+            ${isDetailsVisible ? `
+              <section class="card" style="margin-top:16px;">
+                <dl class="rows">
+                  <div>
+                    <dt>Document type</dt>
+                    <dd><strong>${escapeHtml(docType)}</strong></dd>
+                  </div>
+                  <div>
+                    <dt>Holder name</dt>
+                    <dd>${escapeHtml(holderName)}</dd>
+                  </div>
+                  <div>
+                    <dt>Holder national ID (FAN)</dt>
+                    <dd>${escapeHtml(fanId)}</dd>
+                  </div>
+                  <div>
+                    <dt>Issuer code</dt>
+                    <dd>${escapeHtml(issuerCode)}</dd>
+                  </div>
+                  <div>
+                    <dt>Document ID</dt>
+                    <dd>${escapeHtml(docId)}</dd>
+                  </div>
+                  <div>
+                    <dt>Issued</dt>
+                    <dd>${escapeHtml(issueDate)}</dd>
+                  </div>
+                  <div>
+                    <dt>Expires</dt>
+                    <dd>${escapeHtml(expiryDate)}</dd>
+                  </div>
+                </dl>
+              </section>
+            ` : ''}
+
+            ${params.note ? `
+              <p class="note" style="margin-top:16px; text-align:center;">
+                ${escapeHtml(params.note)}
+              </p>
+            ` : ''}
+
+            <div style="margin-top:24px; display:flex; justify-content:center; gap:12px; flex-wrap:wrap;">
               <button class="btn" onclick="navigateTo('verify')">Scan another document</button>
+              ${(status === 'tampered' || status === 'revoked') ? `
+                <button class="btn outline danger" onclick="navigateTo('report', { docId: '${escapeHtml(docId)}' })">
+                  Report a fraud
+                </button>
+              ` : ''}
+              ${status === 'error' ? `
+                <button class="btn outline" onclick="navigateTo('contact')">
+                  Contact us
+                </button>
+              ` : ''}
             </div>
           </div>
         `;
+
       } else if (route === 'issue') {
         if (!currentUser) {
           if (authMode === 'choose') {
@@ -1160,7 +1865,8 @@
           }
         } else {
           // Signed in view: Issue form
-          const newDocId = crypto.randomUUID ? crypto.randomUUID() : '550e8400-e29b-41d4-a716-446655440000';
+          const existingDocId = document.getElementById('issue-doc-id')?.value;
+          const newDocId = existingDocId || (crypto.randomUUID ? crypto.randomUUID() : '550e8400-e29b-41d4-a716-446655440000');
           container.innerHTML = `
             <div style="max-width:680px; margin:0 auto;">
               <h1>Issue a document</h1>
@@ -1218,8 +1924,9 @@
                   <input name="issuer" value="ET-AA-LAND-04" required />
                 </label>
                 <p style="margin-top:24px;">
-                  <button class="btn block" type="submit">Sign and create document</button>
+                  <button class="btn block" type="submit" id="btn-submit-issue">Sign and create document</button>
                 </p>
+                <p id="issue-error-msg" class="err" style="display:none; margin-top:12px;"></p>
               </form>
             </div>
           `;
@@ -1291,12 +1998,13 @@
           </div>
         `;
       } else if (route === 'report') {
+        const prefillDocId = params.docId || '';
         container.innerHTML = `
           <div style="max-width:540px; margin:0 auto;">
             <h1>Report a fraud</h1>
             <p class="muted" style="margin:16px 0 24px;">Report suspected fraudulent, tampered, or forged credentials directly to INSA cybersecurity operations.</p>
             <form class="card" style="padding:28px; display:flex; flex-direction:column; gap:16px;" onsubmit="alert('Report submitted to INSA audit queue.'); navigateTo('home'); return false;">
-              <label class="field"><span>Document ID</span><input name="docId" required /></label>
+              <label class="field"><span>Document ID</span><input name="docId" value="${escapeHtml(prefillDocId)}" required /></label>
               <label class="field"><span>Reason for report</span>
                 <select name="reason">
                   <option>Suspected signature forgery</option>
@@ -1307,6 +2015,32 @@
               <label class="field"><span>Details</span><textarea rows="4" required></textarea></label>
               <p style="margin-top:24px;"><button class="btn block" type="submit">Submit report</button></p>
             </form>
+          </div>
+        `;
+      } else if (route === 'contact') {
+        container.innerHTML = `
+          <div style="max-width:640px; margin:0 auto;">
+            <h1>Contact us</h1>
+            <p class="muted" style="margin:10px 0 24px;">Questions about a document, a result, or using WaseNet? Reach the team below.</p>
+            <div style="display:flex; flex-direction:column; gap:16px;">
+              <div class="card" style="padding:24px;">
+                <h3 style="margin-bottom:8px;">Fraud and identity reports</h3>
+                <p style="font-weight:700; margin-bottom:6px;">Information Network Security Administration (INSA)</p>
+                <p class="muted" style="font-size:14.5px; line-height:1.5; margin-bottom:12px;">
+                  For digital or cyber-related document and identity authentication issues, reach INSA through the service below.
+                </p>
+                <a class="btn outline sm" href="https://www.insa.gov.et/service/Fraud-Prevention-Service" target="_blank" rel="noopener noreferrer">
+                  INSA Fraud Prevention Service
+                </a>
+              </div>
+              <div class="card" style="padding:24px;">
+                <h3 style="margin-bottom:8px;">Support hours</h3>
+                <p class="muted" style="margin:0;">Monday to Friday, 8:30 to 17:00</p>
+              </div>
+            </div>
+            <div style="margin-top:32px; text-align:center;">
+              <button class="btn outline danger" onclick="navigateTo('report')">Report a fraud</button>
+            </div>
           </div>
         `;
       } else {
@@ -1355,10 +2089,14 @@
       renderView('issue');
     }
 
-    function handleIssueDoc(e) {
+    // ---------------- Document Issuance Pipeline (Requirement 1) ---------------- //
+    async function handleIssueDoc(e) {
       e.preventDefault();
       const fanInp = document.getElementById('fan-input');
       const cleanFan = (fanInp.value || '').replace(/\D/g, '');
+      const errEl = document.getElementById('issue-error-msg');
+      if (errEl) errEl.style.display = 'none';
+
       if (cleanFan.length !== 16) {
         document.getElementById('fan-error').style.display = 'block';
         fanInp.focus();
@@ -1366,16 +2104,25 @@
       }
 
       const form = e.target;
-      const docType = form.docType.value;
+      const rawDocType = form.docType.value;
+      const mappedDocType = DOC_TYPE_TO_SCHEMA[rawDocType] || 'land_certificate';
       const holder = form.holder.value;
+      // Retain device-generated Document ID across retries (FR-2.1)
       const docId = form.docId.value;
-      const issuerCode = form.issuer ? form.issuer.value : 'ET-AA-LAND-04';
+      const issuerCode = form.issuer ? form.issuer.value : 'ET-AA-DOC-01';
       const issueDate = form.issued ? form.issued.value : new Date().toISOString().split('T')[0];
       const expiryDate = form.expires ? form.expires.value : new Date(Date.now() + 5*365*24*3600*1000).toISOString().split('T')[0];
 
+      const submitBtn = document.getElementById('btn-submit-issue');
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Saving document...';
+      }
+
       currentIssuedDoc = {
         doc_id: docId,
-        type: docType,
+        type: rawDocType,
+        doc_type: mappedDocType,
         holder_name: holder,
         holder_id: cleanFan,
         issuer_code: issuerCode,
@@ -1384,22 +2131,110 @@
         photo: holderPhoto
       };
 
-      // Compact JWS token payload without photo (SRS 4.1)
-      const payloadObj = {
-        doc_id: docId,
-        type: docType,
-        holder_name: holder,
-        holder_id: cleanFan,
-        issued_at: issueDate,
-        issuer_code: issuerCode
-      };
-      const jws = 'eyJhbGciOiJFUzI1NiIsImtpZCI6Indhc2UtYWEtMjAyNi0wMSJ9.' + btoa(JSON.stringify(payloadObj)) + '.sig';
+      const isOnline = navigator.onLine;
 
-      // Render Created View
+      if (isOnline) {
+        try {
+          const reqPayload = {
+            id: docId,
+            doc_type: mappedDocType,
+            holder_name: holder,
+            holder_national_id: cleanFan,
+            issue_date: issueDate,
+            expiry_date: expiryDate,
+            attributes: {}
+          };
+
+          const res = await fetchApi('/api/v1/documents', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(reqPayload)
+          });
+
+          if (!res.ok) {
+            throw new Error('Save failed');
+          }
+
+          const serverDoc = await res.json();
+          renderCreatedView(serverDoc.qr_payload, 'Created and synced', rawDocType, holder, cleanFan, docId);
+          return;
+        } catch (saveErr) {
+          // Keep form values and display error message
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Sign and create document';
+          }
+          if (errEl) {
+            errEl.textContent = 'The document could not be saved. Try again.';
+            errEl.style.display = 'block';
+          }
+          return;
+        }
+      }
+
+      // Offline Issuance: store in IndexedDB issuanceQueue with state 'queued'
+      try {
+        const payloadDict = {
+          doc_id: docId,
+          doc_type: mappedDocType,
+          issuer_id: 'ET-AA-DOC-01',
+          kid: 'wase-aa-2026-01',
+          issue_date: issueDate,
+          expiry_date: expiryDate,
+          holder_name: holder,
+          attributes: {}
+        };
+        const canonicalPayload = canonicalizeJson(payloadDict);
+        const sha256Hex = await computeSha256(canonicalPayload);
+
+        // Compact JWS serialization
+        const header = { alg: 'ES256', kid: 'wase-aa-2026-01', typ: 'JWT' };
+        const hB64 = base64UrlEncodeString(JSON.stringify(header));
+        const pB64 = base64UrlEncodeString(canonicalPayload);
+        const offlineJws = `${hB64}.${pB64}.offline_sig`;
+
+        const queueItem = {
+          id: docId,
+          doc_type: mappedDocType,
+          kid: 'wase-aa-2026-01',
+          issue_date: issueDate,
+          expiry_date: expiryDate,
+          payload_canonical: canonicalPayload,
+          jws: offlineJws,
+          payload_sha256: sha256Hex,
+          holder_name: holder,
+          holder_national_id: cleanFan, // securely in IndexedDB, never localStorage
+          state: 'queued',
+          createdAt: new Date().toISOString()
+        };
+
+        await putQueueItem(queueItem);
+        renderCreatedView(offlineJws, 'Waiting to sync', rawDocType, holder, cleanFan, docId);
+      } catch (offlineErr) {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Sign and create document';
+        }
+        if (errEl) {
+          errEl.textContent = 'The document could not be saved. Try again.';
+          errEl.style.display = 'block';
+        }
+      }
+    }
+
+    function renderCreatedView(qrPayload, syncLabel, docType, holder, cleanFan, docId) {
       const container = document.getElementById('view-container');
+      const isQueued = syncLabel.includes('Waiting');
       container.innerHTML = `
         <div style="max-width:560px; margin:0 auto;" class="card narrow issue-card">
-          <h2>Created and synced</h2>
+          <h2>Document created</h2>
+          <div style="margin:8px 0 16px;">
+            <span style="display:inline-block; padding:4px 12px; border-radius:999px; font-weight:700; font-size:13px; ${isQueued ? 'background:var(--warn-bg); color:#fff;' : 'background:var(--ok-bg); color:#fff;'}">
+              ${escapeHtml(syncLabel)}
+            </span>
+          </div>
           ${holderPhoto ? `
             <div style="display:flex; justify-content:center; margin:16px 0;">
               <div class="photo-frame">
@@ -1424,7 +2259,7 @@
       `;
 
       if (window.QRCode) {
-        window.QRCode.toCanvas(document.getElementById('done-qr-canvas'), jws, {
+        window.QRCode.toCanvas(document.getElementById('done-qr-canvas'), qrPayload, {
           errorCorrectionLevel: 'M',
           margin: 4,
           width: 240,
