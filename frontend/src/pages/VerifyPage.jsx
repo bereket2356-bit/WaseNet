@@ -56,14 +56,7 @@ async function decodeQrCodeFromFile(file) {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-    const tryDecode = (w, h) => {
-      const imgData = ctx.getImageData(0, 0, w, h);
-      const code = jsQR(imgData.data, w, h, { inversionAttempts: 'attemptBoth' });
-      if (code && code.data) return code.data;
-      return null;
-    };
-
-    // Attempt 1: Full-res (clamped at 1600px max for speed)
+    // Attempt 1: Full frame (clamped to 1600px max for speed)
     let w1 = origW;
     let h1 = origH;
     const maxDim = 1600;
@@ -75,14 +68,27 @@ async function decodeQrCodeFromFile(file) {
     canvas.width = w1;
     canvas.height = h1;
     ctx.drawImage(img, 0, 0, w1, h1);
-    let result = tryDecode(w1, h1);
-    if (result) {
-      canvas.width = 0;
-      canvas.height = 0;
-      return result;
+    let fullImgData = ctx.getImageData(0, 0, w1, h1);
+    let code = jsQR(fullImgData.data, w1, h1, { inversionAttempts: 'dontInvert' });
+    if (code && code.data) {
+      canvas.width = 0; canvas.height = 0;
+      return code.data;
     }
 
-    // Attempt 2: Downscaled copy (clamped to 800px max or 0.5 scale)
+    // Attempt 2: Centered crop (central 70% where the QR code sits)
+    const cropRatio = 0.7;
+    const cw = Math.max(1, Math.round(w1 * cropRatio));
+    const ch = Math.max(1, Math.round(h1 * cropRatio));
+    const cx = Math.max(0, Math.round((w1 - cw) / 2));
+    const cy = Math.max(0, Math.round((h1 - ch) / 2));
+    const cropImgData = ctx.getImageData(cx, cy, cw, ch);
+    code = jsQR(cropImgData.data, cw, ch, { inversionAttempts: 'dontInvert' });
+    if (code && code.data) {
+      canvas.width = 0; canvas.height = 0;
+      return code.data;
+    }
+
+    // Attempt 3: Downscaled copy (clamped to 800px max or 0.5 scale)
     const scale = Math.min(800 / origW, 800 / origH, 0.5);
     const w2 = Math.max(1, Math.round(origW * scale));
     const h2 = Math.max(1, Math.round(origH * scale));
@@ -90,28 +96,25 @@ async function decodeQrCodeFromFile(file) {
       canvas.width = w2;
       canvas.height = h2;
       ctx.drawImage(img, 0, 0, w2, h2);
-      result = tryDecode(w2, h2);
-      if (result) {
-        canvas.width = 0;
-        canvas.height = 0;
-        return result;
+      const downImgData = ctx.getImageData(0, 0, w2, h2);
+      code = jsQR(downImgData.data, w2, h2, { inversionAttempts: 'dontInvert' });
+      if (code && code.data) {
+        canvas.width = 0; canvas.height = 0;
+        return code.data;
       }
     }
 
-    // Attempt 3: Grayscale copy
-    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const d = imgData.data;
-    for (let i = 0; i < d.length; i += 4) {
-      const gray = d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114;
-      d[i] = gray;
-      d[i + 1] = gray;
-      d[i + 2] = gray;
+    // Attempt 4: Inverted copy (inverts pixels for dark/inverted codes)
+    const invData = new Uint8ClampedArray(fullImgData.data);
+    for (let i = 0; i < invData.length; i += 4) {
+      invData[i] = 255 - invData[i];
+      invData[i + 1] = 255 - invData[i + 1];
+      invData[i + 2] = 255 - invData[i + 2];
     }
-    const codeGray = jsQR(d, canvas.width, canvas.height, { inversionAttempts: 'attemptBoth' });
-    if (codeGray && codeGray.data) {
-      canvas.width = 0;
-      canvas.height = 0;
-      return codeGray.data;
+    code = jsQR(invData, w1, h1, { inversionAttempts: 'dontInvert' });
+    if (code && code.data) {
+      canvas.width = 0; canvas.height = 0;
+      return code.data;
     }
 
     canvas.width = 0;
@@ -224,24 +227,61 @@ export default function VerifyPage({ navigate }) {
     }
 
     const canvas = offscreenCanvasRef.current;
-    if (canvas) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+    if (canvas && window.jsQR) {
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+      canvas.width = vw;
+      canvas.height = vh;
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(video, 0, 0, vw, vh);
+      const fullImg = ctx.getImageData(0, 0, vw, vh);
 
-      if (window.jsQR) {
-        const code = window.jsQR(imageData.data, imageData.width, imageData.height, {
-          inversionAttempts: 'dontInvert'
-        });
-        if (code && code.data) {
-          stopCamera();
-          sessionStorage.setItem('wase_verify_source', 'scan');
-          sessionStorage.setItem('wase_verify_jws', code.data);
-          navigate('result', { jws: code.data, source: 'scan' });
-          return;
+      let found = null;
+      // 1. Full frame
+      let code = window.jsQR(fullImg.data, vw, vh, { inversionAttempts: 'dontInvert' });
+      if (code && code.data) found = code.data;
+
+      // 2. Centered crop (central 70%)
+      if (!found) {
+        const cw = Math.max(1, Math.round(vw * 0.7));
+        const ch = Math.max(1, Math.round(vh * 0.7));
+        const cx = Math.max(0, Math.round((vw - cw) / 2));
+        const cy = Math.max(0, Math.round((vh - ch) / 2));
+        const cropImg = ctx.getImageData(cx, cy, cw, ch);
+        code = window.jsQR(cropImg.data, cw, ch, { inversionAttempts: 'dontInvert' });
+        if (code && code.data) found = code.data;
+      }
+
+      // 3. Downscaled copy
+      if (!found && (vw > 600 || vh > 600)) {
+        const sw = Math.round(vw / 2);
+        const sh = Math.round(vh / 2);
+        canvas.width = sw;
+        canvas.height = sh;
+        ctx.drawImage(video, 0, 0, sw, sh);
+        const downImg = ctx.getImageData(0, 0, sw, sh);
+        code = window.jsQR(downImg.data, sw, sh, { inversionAttempts: 'dontInvert' });
+        if (code && code.data) found = code.data;
+      }
+
+      // 4. Inverted copy
+      if (!found) {
+        const invData = new Uint8ClampedArray(fullImg.data);
+        for (let i = 0; i < invData.length; i += 4) {
+          invData[i] = 255 - invData[i];
+          invData[i + 1] = 255 - invData[i + 1];
+          invData[i + 2] = 255 - invData[i + 2];
         }
+        code = window.jsQR(invData, vw, vh, { inversionAttempts: 'dontInvert' });
+        if (code && code.data) found = code.data;
+      }
+
+      if (found) {
+        stopCamera();
+        sessionStorage.setItem('wase_verify_source', 'scan');
+        sessionStorage.setItem('wase_verify_jws', found);
+        navigate('result', { jws: found, source: 'scan' });
+        return;
       }
     }
 
