@@ -96,7 +96,8 @@ def issue_document(
         )
 
     issuer_id = primary_issuer.id
-    creator_id = primary_issuer.id
+    default_user = db.query(User).filter(User.issuer_id == issuer_id).first() or db.query(User).first()
+    creator_id = default_user.id if default_user else primary_issuer.id
     if current_user:
         creator_id = current_user.id
         if current_user.issuer_id:
