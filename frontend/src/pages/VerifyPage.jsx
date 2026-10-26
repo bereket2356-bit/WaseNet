@@ -36,9 +36,118 @@ function loadJsQR() {
   return jsqrPromise;
 }
 
+let pdfjsPromise = null;
+function loadPdfJs() {
+  if (typeof window !== 'undefined' && window.pdfjsLib) {
+    return Promise.resolve(window.pdfjsLib);
+  }
+  if (!pdfjsPromise) {
+    pdfjsPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      script.onload = () => {
+        if (window.pdfjsLib) {
+          window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+          resolve(window.pdfjsLib);
+        } else {
+          reject(new Error('pdf.js unavailable'));
+        }
+      };
+      script.onerror = () => reject(new Error('Failed to load pdf.js'));
+      document.head.appendChild(script);
+    });
+  }
+  return pdfjsPromise;
+}
+
+async function decodePdfFile(file, jsQR) {
+  const pdfjs = await loadPdfJs();
+  const arrayBuffer = await file.arrayBuffer();
+  let pdfDoc;
+  try {
+    const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
+    pdfDoc = await loadingTask.promise;
+  } catch (err) {
+    const openErr = new Error('This PDF could not be opened. Try a photo or a scan of the document.');
+    openErr.code = 'PDF_OPEN_ERROR';
+    throw openErr;
+  }
+
+  try {
+    const maxPages = Math.min(pdfDoc.numPages, 3);
+    for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+      const page = await pdfDoc.getPage(pageNum);
+      const viewport = page.getViewport({ scale: 2.0 });
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+      // Attempt 1: Full frame
+      let code = jsQR(imgData.data, canvas.width, canvas.height, { inversionAttempts: 'dontInvert' });
+      if (code && code.data) {
+        canvas.width = 0; canvas.height = 0;
+        return code.data;
+      }
+
+      // Attempt 2: Centered crop (central 70%)
+      const cw = Math.max(1, Math.round(canvas.width * 0.7));
+      const ch = Math.max(1, Math.round(canvas.height * 0.7));
+      const cx = Math.max(0, Math.round((canvas.width - cw) / 2));
+      const cy = Math.max(0, Math.round((canvas.height - ch) / 2));
+      const cropImgData = ctx.getImageData(cx, cy, cw, ch);
+      code = jsQR(cropImgData.data, cw, ch, { inversionAttempts: 'dontInvert' });
+      if (code && code.data) {
+        canvas.width = 0; canvas.height = 0;
+        return code.data;
+      }
+
+      // Attempt 3: Downscaled copy
+      const dw = Math.floor(canvas.width / 2);
+      const dh = Math.floor(canvas.height / 2);
+      const downCanvas = document.createElement('canvas');
+      downCanvas.width = dw;
+      downCanvas.height = dh;
+      const dctx = downCanvas.getContext('2d');
+      dctx.drawImage(canvas, 0, 0, dw, dh);
+      const downImgData = dctx.getImageData(0, 0, dw, dh);
+      code = jsQR(downImgData.data, dw, dh, { inversionAttempts: 'dontInvert' });
+      downCanvas.width = 0; downCanvas.height = 0;
+      if (code && code.data) {
+        canvas.width = 0; canvas.height = 0;
+        return code.data;
+      }
+
+      // Attempt 4: Inverted copy
+      const invData = new Uint8ClampedArray(imgData.data);
+      for (let i = 0; i < invData.length; i += 4) {
+        invData[i] = 255 - invData[i];
+        invData[i + 1] = 255 - invData[i + 1];
+        invData[i + 2] = 255 - invData[i + 2];
+      }
+      code = jsQR(invData, canvas.width, canvas.height, { inversionAttempts: 'dontInvert' });
+      canvas.width = 0; canvas.height = 0;
+      if (code && code.data) {
+        return code.data;
+      }
+    }
+    return null;
+  } finally {
+    if (pdfDoc && typeof pdfDoc.destroy === 'function') {
+      await pdfDoc.destroy();
+    }
+  }
+}
+
 async function decodeQrCodeFromFile(file) {
   const jsQR = await loadJsQR();
   if (!jsQR) throw new Error('Decoder unavailable');
+
+  if (file.type === 'application/pdf' || (file.name || '').toLowerCase().endsWith('.pdf')) {
+    return await decodePdfFile(file, jsQR);
+  }
 
   const objectUrl = URL.createObjectURL(file);
   try {
@@ -305,15 +414,15 @@ export default function VerifyPage({ navigate }) {
       return;
     }
 
-    // 2. Allowed types: JPG, PNG, WebP
-    const allowedMime = ['image/jpeg', 'image/png', 'image/webp'];
+    // 2. Allowed types: JPG, PNG, WebP, PDF
+    const allowedMime = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
     const fileName = file.name || '';
     const ext = fileName.split('.').pop()?.toLowerCase();
-    const isAllowedExt = ['jpg', 'jpeg', 'png', 'webp'].includes(ext);
+    const isAllowedExt = ['jpg', 'jpeg', 'png', 'webp', 'pdf'].includes(ext);
     const isAllowedType = allowedMime.includes(file.type) || isAllowedExt;
 
     if (!isAllowedType) {
-      const msg = 'Choose a JPG, PNG, or WebP image.';
+      const msg = 'Choose a JPG, PNG, WebP, or PDF file.';
       setFileError(msg);
       setAnnouncement(msg);
       e.target.value = '';
@@ -337,6 +446,12 @@ export default function VerifyPage({ navigate }) {
         navigate('result', { s: 'error', source: 'upload' });
       }
     } catch (err) {
+      if (err?.code === 'PDF_OPEN_ERROR' || err?.message?.includes('could not be opened')) {
+        const msg = 'This PDF could not be opened. Try a photo or a scan of the document.';
+        setFileError(msg);
+        setAnnouncement(msg);
+        return;
+      }
       setAnnouncement('Could not read QR code.');
       sessionStorage.setItem('wase_verify_source', 'upload');
       sessionStorage.removeItem('wase_verify_jws');
@@ -407,7 +522,7 @@ export default function VerifyPage({ navigate }) {
                 ref={fileInputRef}
                 id="qr-file-input"
                 type="file"
-                accept="image/jpeg,image/png,image/webp"
+                accept="image/jpeg,image/png,image/webp,application/pdf"
                 style={{ display: 'none' }}
                 aria-hidden="true"
                 tabIndex={-1}
@@ -426,7 +541,7 @@ export default function VerifyPage({ navigate }) {
               </button>
 
               <p id="file-hint" className="muted" style={{ margin: '10px 0 4px', fontSize: '13px' }}>
-                Use a clear photo or scan of the QR code. JPG, PNG, or WebP.
+                JPG, PNG, WebP, or PDF. Your file stays on this device.
               </p>
               <p id="file-privacy" className="muted" style={{ margin: '0 0 4px', fontSize: '12px' }}>
                 Your file stays on this device.
