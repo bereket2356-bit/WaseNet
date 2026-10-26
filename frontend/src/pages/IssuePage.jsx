@@ -75,6 +75,7 @@ export default function IssuePage({ navigate }) {
   const [photoAnnouncement, setPhotoAnnouncement] = useState('');
   const [isSigning, setIsSigning] = useState(false);
   const [issued, setIssued] = useState(null);
+  const [printError, setPrintError] = useState('');
   const photoInputRef = useRef(null);
 
   const checkOffline = () => {
@@ -679,28 +680,37 @@ export default function IssuePage({ navigate }) {
           <p className="msg" style={{ textAlign: 'center', marginTop: '16px' }}>
             {isOffline ? 'Saved. Waiting to sync.' : 'Created and synced'}
           </p>
+          {printError && (
+            <p className="err" role="alert" style={{ textAlign: 'center', marginTop: '12px' }}>
+              {printError}
+            </p>
+          )}
           <div className="row-btns" style={{ justifyContent: 'center', marginTop: '20px' }}>
             <button
               className="btn outline"
               type="button"
-              onClick={() => {
-                if (!issued) return;
-                fillPrintSheet({
-                  doc_id: issued.id,
-                  type: DOC_TYPES[issued.type] || issued.type,
-                  holder_name: issued.holder,
-                  holder_id: issued.holderId,
-                  photo: issued.photo,
-                  issuer_code: issued.issuer || 'ET-AA-LAND-04',
-                  issued_at: issued.issued,
-                  expires_at: issued.expires
-                });
-                window.print();
+              onClick={async () => {
+                if (!issued || !issued.id) {
+                  setPrintError('The certificate could not be loaded. Try again.');
+                  return;
+                }
+                setPrintError('');
+                try {
+                  const res = await fetch(`/api/v1/documents/${encodeURIComponent(issued.id)}`);
+                  if (!res.ok) {
+                    throw new Error('Could not fetch server record');
+                  }
+                  const serverDoc = await res.json();
+                  await fillPrintSheet(serverDoc);
+                  window.print();
+                } catch (e) {
+                  setPrintError('The certificate could not be loaded. Try again.');
+                }
               }}
             >
               Print
             </button>
-            <button className="btn" type="button" onClick={() => setIssued(null)}>
+            <button className="btn" type="button" onClick={() => { setIssued(null); setPrintError(''); }}>
               Issue another
             </button>
           </div>
