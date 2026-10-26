@@ -71,14 +71,14 @@ function formatNationalId(val) {
   return String(val);
 }
 
-const DEFAULT_DOC = {
-  type: 'dt_land',
-  holder: 'Abebe Bikila',
-  holderId: '1024589234017685',
-  issuer: 'KEBELE-04-AA',
-  docId: '550e8400-e29b-41d4-a716-446655440000',
-  issued: '1 Oct 2026',
-  expires: '1 Oct 2028'
+const EMPTY_DOC = {
+  type: '',
+  holder: '—',
+  holderId: '',
+  issuer: '—',
+  docId: '—',
+  issued: '—',
+  expires: '—'
 };
 
 export default function ResultPage({ routeParams, navigate }) {
@@ -87,17 +87,15 @@ export default function ResultPage({ routeParams, navigate }) {
     return 'valid';
   });
 
-  const [docData, setDocData] = useState(DEFAULT_DOC);
+  const [docData, setDocData] = useState(routeParams?.doc || EMPTY_DOC);
+  const [customCfg, setCustomCfg] = useState(null);
+  const [isOfflineResult, setIsOfflineResult] = useState(false);
 
   useEffect(() => {
     async function evaluate() {
-      if (routeParams?.s && RESULTS_CONFIG[routeParams.s]) {
-        setActiveStatus(routeParams.s);
-        if (routeParams.s === 'expired') {
-          setDocData({ ...DEFAULT_DOC, expires: '1 Oct 2025' });
-        } else {
-          setDocData(DEFAULT_DOC);
-        }
+      if (routeParams?.doc) {
+        setDocData(routeParams.doc);
+        if (routeParams.s) setActiveStatus(routeParams.s);
         return;
       }
 
@@ -109,49 +107,182 @@ export default function ResultPage({ routeParams, navigate }) {
           const verification = await verifyDocumentCredential(jws, keyStore, drlStore);
           await auditStore.addRecord(verification.docId || 'unknown', verification.status);
 
-          let st = 'valid';
-          if (verification.status === 'TAMPERED') st = 'tampered';
-          else if (verification.status === 'REVOKED') st = 'revoked';
-          else if (verification.status === 'EXPIRED') st = 'expired';
-          else if (verification.status === 'UNREADABLE') st = 'error';
-
-          setActiveStatus(st);
-
-          if (verification.payload) {
-            const p = verification.payload;
-            setDocData({
-              type: p.type || DEFAULT_DOC.type,
-              holder: p.holder_name || p.holder || DEFAULT_DOC.holder,
-              holderId: p.holder_id || p.holderId || DEFAULT_DOC.holderId,
-              issuer: p.issuer_code || p.issuer || DEFAULT_DOC.issuer,
-              docId: verification.docId || p.doc_id || DEFAULT_DOC.docId,
-              issued: p.issued_at ? p.issued_at.split('T')[0] : DEFAULT_DOC.issued,
-              expires: p.expires_at ? p.expires_at.split('T')[0] : DEFAULT_DOC.expires
-            });
+          // Check 1: JWS signature check ALWAYS runs first. Tampered hides details and stops.
+          if (verification.status === 'TAMPERED') {
+            setActiveStatus('tampered');
+            setDocData(EMPTY_DOC);
+            return;
           }
+
+          if (verification.status === 'UNREADABLE') {
+            setActiveStatus('error');
+            setDocData(EMPTY_DOC);
+            return;
+          }
+
+          const payload = verification.payload || {};
+          const targetDocId = verification.docId || payload.doc_id || payload.id;
+
+          // Check 2: Online record fetch
+          let isOnline = navigator.onLine;
+          let dbRecord = null;
+          let notInRecords = false;
+
+          if (isOnline) {
+            try {
+              const res = await fetch(`/api/v1/documents/${encodeURIComponent(targetDocId)}`);
+              if (res.status === 404) {
+                notInRecords = true;
+              } else if (res.ok) {
+                dbRecord = await res.json();
+              } else {
+                isOnline = false;
+              }
+            } catch (netErr) {
+              isOnline = false;
+            }
+          }
+
+          if (notInRecords) {
+            setActiveStatus('error');
+            setCustomCfg({
+              k: 'error',
+              title: 'Not in records',
+              desc: 'This document is not in the WaseNet records. Do not accept it until it is confirmed.',
+              note: 'This document is not in the WaseNet records. Do not accept it until it is confirmed.',
+              f: 0
+            });
+            setDocData(EMPTY_DOC);
+            return;
+          }
+
+          if (isOnline && dbRecord) {
+            const normType = (t) => String(t || '').toLowerCase().replace(/[\s_-]+/g, '');
+            const typeMatch = normType(dbRecord.doc_type) === normType(payload.doc_type || payload.type);
+            const idMatch = String(dbRecord.id).toLowerCase() === String(targetDocId).toLowerCase();
+            const nameMatch = String(dbRecord.holder_name || '').trim().toLowerCase() === String(payload.holder_name || '').trim().toLowerCase();
+            const expMatch = String(dbRecord.expiry_date || '').split('T')[0] === String(payload.expiry_date || payload.expires_at || '').split('T')[0];
+
+            if (!typeMatch || !idMatch || !nameMatch || !expMatch) {
+              setActiveStatus('tampered');
+              setCustomCfg({
+                k: 'tampered',
+                title: 'Tampered',
+                desc: 'This document failed the signature check. Do not accept it.',
+                note: "This document's details do not match its signed record.",
+                f: 0
+              });
+              setDocData(EMPTY_DOC);
+              return;
+            }
+
+            let isRevoked = dbRecord.sync_state === 'revoked';
+            if (!isRevoked) {
+              try {
+                const revRes = await fetch('/api/v1/revocations');
+                if (revRes.ok) {
+                  const revData = await revRes.json();
+                  isRevoked = (revData.delta || []).some((r) => r.doc_id === targetDocId);
+                }
+              } catch (e) {}
+            }
+
+            if (isRevoked) {
+              setActiveStatus('revoked');
+            } else {
+              const expDate = new Date(dbRecord.expiry_date);
+              if (!isNaN(expDate.getTime()) && expDate.getTime() < Date.now()) {
+                setActiveStatus('expired');
+              } else {
+                setActiveStatus('valid');
+              }
+            }
+
+            setDocData({
+              type: dbRecord.doc_type || '',
+              holder: dbRecord.holder_name || '—',
+              holderId: dbRecord.holder_national_id || '',
+              issuer: dbRecord.issuer_code || 'ET-AA-DOC-01',
+              docId: dbRecord.id || targetDocId,
+              issued: dbRecord.issue_date ? String(dbRecord.issue_date).split('T')[0] : '—',
+              expires: dbRecord.expiry_date ? String(dbRecord.expiry_date).split('T')[0] : '—'
+            });
+            setIsOfflineResult(false);
+            return;
+          }
+
+          // Offline fallback
+          setIsOfflineResult(true);
+          const isRevOffline = await drlStore.isRevoked(targetDocId);
+          if (isRevOffline) {
+            setActiveStatus('revoked');
+          } else {
+            const expDate = new Date(payload.expiry_date || payload.expires_at);
+            if (!isNaN(expDate.getTime()) && expDate.getTime() < Date.now()) {
+              setActiveStatus('expired');
+            } else {
+              setActiveStatus('valid');
+            }
+          }
+
+          setDocData({
+            type: payload.doc_type || payload.type || '',
+            holder: payload.holder_name || payload.holder || '—',
+            holderId: '', // Server-only detail; hidden offline
+            issuer: payload.issuer_code || payload.issuer_id || 'ET-AA-DOC-01',
+            docId: targetDocId,
+            issued: payload.issue_date ? String(payload.issue_date).split('T')[0] : '—',
+            expires: payload.expiry_date ? String(payload.expiry_date).split('T')[0] : '—'
+          });
         } catch (err) {
           setActiveStatus('error');
+          setDocData(EMPTY_DOC);
         }
       } else if (docId) {
         try {
-          const revRecord = await drlStore.isRevoked(docId);
-          await auditStore.addRecord(docId, revRecord ? 'REVOKED' : 'VALID');
-          setActiveStatus(revRecord ? 'revoked' : 'valid');
-          setDocData({ ...DEFAULT_DOC, docId });
+          const res = await fetch(`/api/v1/documents/${encodeURIComponent(docId)}`);
+          if (res.status === 404) {
+            setActiveStatus('error');
+            setCustomCfg({
+              k: 'error',
+              title: 'Not in records',
+              desc: 'This document is not in the WaseNet records. Do not accept it until it is confirmed.',
+              note: 'This document is not in the WaseNet records. Do not accept it until it is confirmed.',
+              f: 0
+            });
+            setDocData(EMPTY_DOC);
+            return;
+          }
+          if (res.ok) {
+            const dbRecord = await res.json();
+            setActiveStatus(dbRecord.sync_state === 'revoked' ? 'revoked' : 'valid');
+            setDocData({
+              type: dbRecord.doc_type || '',
+              holder: dbRecord.holder_name || '—',
+              holderId: dbRecord.holder_national_id || '',
+              issuer: dbRecord.issuer_code || 'ET-AA-DOC-01',
+              docId: dbRecord.id || docId,
+              issued: dbRecord.issue_date ? String(dbRecord.issue_date).split('T')[0] : '—',
+              expires: dbRecord.expiry_date ? String(dbRecord.expiry_date).split('T')[0] : '—'
+            });
+            return;
+          }
         } catch (e) {
-          setActiveStatus('valid');
-          setDocData({ ...DEFAULT_DOC, docId });
+          setActiveStatus('error');
+          setDocData(EMPTY_DOC);
         }
+      } else {
+        setDocData(EMPTY_DOC);
       }
     }
 
     evaluate();
-  }, [routeParams?.jws, routeParams?.id, routeParams?.s]);
+  }, [routeParams?.jws, routeParams?.id, routeParams?.s, routeParams?.doc]);
 
   const verifySource = routeParams?.source || sessionStorage.getItem('wase_verify_source') || (routeParams?.id ? 'id' : 'scan');
 
-  const baseCfg = RESULTS_CONFIG[activeStatus] || RESULTS_CONFIG.valid;
-  const cfg = activeStatus === 'error'
+  const baseCfg = customCfg || RESULTS_CONFIG[activeStatus] || RESULTS_CONFIG.valid;
+  const cfg = (activeStatus === 'error' && !customCfg)
     ? {
         ...baseCfg,
         ...(ERROR_MESSAGES[verifySource] || ERROR_MESSAGES.scan)
@@ -165,7 +296,7 @@ export default function ResultPage({ routeParams, navigate }) {
   const fields = [
     ['Document type', displayType],
     ['Holder name', docData.holder],
-    ['Holder national ID (FAN)', formatNationalId(docData.holderId)],
+    ...(!isOfflineResult && docData.holderId ? [['Holder national ID (FAN)', formatNationalId(docData.holderId)]] : []),
     ['Issuer code', docData.issuer],
     ['Document ID', docData.docId],
     ['Issued', docData.issued],
@@ -178,6 +309,12 @@ export default function ResultPage({ routeParams, navigate }) {
         <h2>{cfg.title}</h2>
         <p>{cfg.desc}</p>
       </section>
+
+      {isOfflineResult && (
+        <div className="note" style={{ marginTop: '14px', textAlign: 'center', fontWeight: 700, color: 'var(--warn-bg)' }}>
+          Checked on this device. Not confirmed online.
+        </div>
+      )}
 
       {isDetailsVisible && (
         <section className="card" style={{ marginTop: '16px' }}>
