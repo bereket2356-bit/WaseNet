@@ -9,6 +9,13 @@
 
 Backend API and PostgreSQL database for **WaseNet**: an offline-first document authentication platform for public offices in Ethiopia.
 
+**Author:** Bereket Teshome (ID: `CTC-1367-26`)
+
+### Default Issuance Credentials
+- **Issuer Username:** `issuer_aa` (or `admin`)
+- **Issuer Password:** `IssuerPass2026!` (for `issuer_aa`) / `Admin@WaseNet2026!` (for `admin`)
+- **Offline / Local Fallback:** `issuer` / `issuer123` (or `admin` / `admin123`)
+
 ---
 
 ## 1. Technology Stack & Architectural Decision

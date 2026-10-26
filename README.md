@@ -5,6 +5,11 @@
 
 **Author:** Bereket Teshome (ID: `CTC-1367-26`)
 
+### Default Issuance Credentials
+- **Issuer Username:** `issuer_aa` (or `admin`)
+- **Issuer Password:** `IssuerPass2026!` (for `issuer_aa`) / `Admin@WaseNet2026!` (for `admin`)
+- **Offline / Local Fallback:** `issuer` / `issuer123` (or `admin` / `admin123`)
+
 **Offline-first document authentication for public-sector credentials.**
 
 WaseNet lets authorized institutions issue digitally signed credentials as QR codes, and lets anyone verify them in the field without a network connection.
