@@ -1,0 +1,574 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <title>WaseNet · Specimen Document Templates</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #F5F6F4;
+      --surface: #FFFFFF;
+      --stage: #E6EBE8;
+      --ink: #1E2B30;
+      --on-ink: #FFFFFF;
+      --muted: #55656B;
+      --line: #D9DEDB;
+      --accent: #2D6A4F;
+      --danger: #A8322A;
+      --header-bg: rgba(245, 246, 244, 0.85);
+      --font-serif: "Newsreader", Georgia, serif;
+      --font-sans: "Atkinson Hyperlegible", system-ui, sans-serif;
+    }
+    [data-theme="dark"] {
+      --bg: #121A1D;
+      --surface: #192327;
+      --stage: #1F2C31;
+      --ink: #E8EDEA;
+      --on-ink: #121A1D;
+      --muted: #A3B2AD;
+      --line: #2E3D42;
+      --accent: #2F7A58;
+      --danger: #B9463B;
+      --header-bg: rgba(18, 26, 29, 0.85);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font: 400 15px/1.55 var(--font-sans);
+      letter-spacing: 0.005em;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header.top {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--header-bg);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--line);
+    }
+    .wrap {
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 0 20px;
+      width: 100%;
+    }
+    .bar {
+      min-height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .brand {
+      font-family: var(--font-serif);
+      font-size: 1.45rem;
+      font-weight: 500;
+      color: var(--ink);
+      text-decoration: none;
+    }
+    .top-links {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+    .top-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 14px;
+    }
+    .top-links a:hover {
+      color: var(--ink);
+    }
+    main.main-content {
+      flex: 1 0 auto;
+      padding-top: calc(64px + 24px);
+      padding-bottom: 48px;
+    }
+    .controls-panel {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 24px 28px;
+      margin-bottom: 28px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .selector-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .selector-group label {
+      font-weight: 700;
+      font-size: 15px;
+    }
+    .selector-group select {
+      min-height: 46px;
+      padding: 10px 16px;
+      font: inherit;
+      font-size: 15px;
+      color: var(--ink);
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    .demo-note {
+      color: var(--muted);
+      font-size: 14px;
+      font-style: italic;
+      background: var(--stage);
+      padding: 8px 14px;
+      border-radius: 8px;
+      border-left: 3px solid var(--accent);
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      padding: 0 22px;
+      border-radius: 999px;
+      border: 1px solid var(--ink);
+      background: var(--ink);
+      color: var(--on-ink);
+      font: inherit;
+      font-weight: 700;
+      font-size: 15px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .btn.outline {
+      background: transparent;
+      color: var(--ink);
+    }
+    .btn:hover {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    /* Official Specimen Sheet */
+    .specimen-card {
+      background: var(--surface);
+      border: 2px solid var(--line);
+      border-radius: 16px;
+      padding: 36px 40px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+      position: relative;
+    }
+    .watermark {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(-30deg);
+      font-size: clamp(3rem, 10vw, 6rem);
+      font-weight: 700;
+      color: rgba(45, 106, 79, 0.06);
+      pointer-events: none;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      font-family: var(--font-serif);
+      white-space: nowrap;
+    }
+    .specimen-header {
+      text-align: center;
+      border-bottom: 2px solid var(--line);
+      padding-bottom: 20px;
+      margin-bottom: 28px;
+    }
+    .specimen-country {
+      font-size: 13px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .specimen-office {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+    .specimen-title {
+      font-family: var(--font-serif);
+      font-size: clamp(1.6rem, 3.5vw, 2.2rem);
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: -0.01em;
+    }
+    .specimen-body {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 32px;
+      align-items: start;
+    }
+    .specimen-left {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+    .photo-and-name {
+      display: flex;
+      gap: 24px;
+      align-items: center;
+    }
+    /* 4x4 cm image holder */
+    .photo-holder-4cm {
+      width: 4cm;
+      height: 4cm;
+      min-width: 4cm;
+      min-height: 4cm;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--stage);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .photo-holder-4cm img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .holder-meta h3 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .holder-meta .fan-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--stage);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--ink);
+      font-family: monospace;
+      letter-spacing: 0.05em;
+    }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      border-top: 1px solid var(--line);
+      padding-top: 20px;
+    }
+    .meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .meta-item dt {
+      font-size: 12.5px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 700;
+    }
+    .meta-item dd {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--ink);
+    }
+    /* QR code section (minimum 240px and printable at no less than 3 cm wide) */
+    .specimen-right {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      padding: 16px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+    }
+    .qr-canvas-box {
+      width: 240px;
+      height: 240px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #FFFFFF;
+      padding: 0;
+    }
+    .qr-caption {
+      font-size: 12px;
+      color: var(--muted);
+      text-align: center;
+      max-width: 240px;
+      line-height: 1.4;
+    }
+    footer.foot {
+      margin-top: 40px;
+      border-top: 1px solid var(--line);
+      padding: 24px 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    @media (max-width: 768px) {
+      .specimen-card {
+        padding: 24px 20px;
+      }
+      .specimen-body {
+        grid-template-columns: 1fr;
+      }
+      .photo-and-name {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .meta-grid {
+        grid-template-columns: 1fr;
+      }
+      .specimen-right {
+        margin: 0 auto;
+      }
+    }
+    @media print {
+      header.top, .controls-panel, footer.foot, .btn {
+        display: none !important;
+      }
+      body {
+        background: #fff !important;
+        color: #000 !important;
+      }
+      main.main-content {
+        padding: 0 !important;
+      }
+      .specimen-card {
+        border: 2px solid #000 !important;
+        box-shadow: none !important;
+        page-break-inside: avoid;
+      }
+      .qr-canvas-box {
+        width: 3.5cm !important;
+        height: 3.5cm !important;
+      }
+      .photo-holder-4cm {
+        width: 4cm !important;
+        height: 4cm !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="top" role="banner">
+    <div class="wrap bar">
+      <a href="./wasenet-site-v3.html#/" class="brand">WaseNet</a>
+      <div class="top-links">
+        <a href="./wasenet-site-v3.html#/verify">Verify</a>
+        <a href="./wasenet-site-v3.html#/issue">Issue</a>
+        <a href="./wasenet-specimen-templates.html" style="color:var(--accent);">Specimens</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="main-content wrap" id="main-content">
+    <!-- Training / Demonstration Controls -->
+    <section class="controls-panel" aria-label="Template selector">
+      <div class="selector-group">
+        <label for="doc-type-select">Document template:</label>
+        <select id="doc-type-select">
+          <option value="dt_land">Land certificate</option>
+          <option value="dt_coop">Cooperative credential</option>
+          <option value="dt_birth">Birth record</option>
+          <option value="dt_permit">Local permit</option>
+        </select>
+      </div>
+
+      <div class="demo-note">
+        For demonstration only. Real verification shows the type as read from the code.
+      </div>
+
+      <button type="button" class="btn outline" onclick="window.print()">
+        Print specimen
+      </button>
+    </section>
+
+    <!-- Specimen Document Sheet -->
+    <article class="specimen-card" id="specimen-sheet" aria-labelledby="doc-heading">
+      <div class="watermark">SPECIMEN</div>
+
+      <header class="specimen-header">
+        <div class="specimen-country">Federal Democratic Republic of Ethiopia</div>
+        <div class="specimen-office" id="specimen-office">Addis Ababa City Administration Land Bureau</div>
+        <h1 class="specimen-title" id="doc-heading">Official Land Holding Certificate</h1>
+      </header>
+
+      <div class="specimen-body">
+        <div class="specimen-left">
+          <div class="photo-and-name">
+            <!-- 4x4 cm Image Holder -->
+            <div class="photo-holder-4cm" id="photo-container" aria-label="Holder photograph frame (4x4 cm)">
+              <svg id="default-photo-svg" viewBox="0 0 100 100" width="100%" height="100%" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect width="100" height="100" fill="#E6EBE8"/>
+                <circle cx="50" cy="38" r="20" fill="#A3B2AD"/>
+                <path d="M16 88C16 70 31 66 50 66C69 66 84 70 84 88" fill="#A3B2AD"/>
+              </svg>
+              <img id="holder-photo-img" src="" alt="Holder official portrait" style="display:none;" />
+            </div>
+
+            <div class="holder-meta">
+              <div style="font-size:12px; text-transform:uppercase; color:var(--muted); font-weight:700;">Authorized Credential Holder</div>
+              <h3 id="holder-name-val">Abebe Bikila</h3>
+              <div style="margin-top:6px;">
+                <span style="font-size:13px; color:var(--muted); font-weight:700;">Holder national ID (FAN): </span>
+                <span class="fan-badge" id="holder-fan-val">1024-5892-3401-7685</span>
+              </div>
+            </div>
+          </div>
+
+          <dl class="meta-grid">
+            <div class="meta-item">
+              <dt>Document ID</dt>
+              <dd id="doc-id-val">550e8400-e29b-41d4-a716-446655440000</dd>
+            </div>
+            <div class="meta-item">
+              <dt>Issuer Authority Code</dt>
+              <dd id="issuer-code-val">ET-AA-LAND-04</dd>
+            </div>
+            <div class="meta-item">
+              <dt>Issue Date</dt>
+              <dd id="issue-date-val">2026-10-01</dd>
+            </div>
+            <div class="meta-item">
+              <dt>Expiration Date</dt>
+              <dd id="expiry-date-val">2031-10-01</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div class="specimen-right">
+          <div class="qr-canvas-box">
+            <canvas id="qr-canvas" width="240" height="240" aria-label="Official WaseNet document QR code"></canvas>
+          </div>
+          <div class="qr-caption">
+            Level M error correction (FR-2.4)<br>
+            Scan with any standard verifier
+          </div>
+        </div>
+      </div>
+    </article>
+  </main>
+
+  <footer class="foot">
+    <div class="wrap">
+      <p>WaseNet Document Authentication Prototype · Public Offices in Ethiopia</p>
+      <p>© 2026 INSA / Capstone Implementation</p>
+    </div>
+  </footer>
+
+  <!-- QRCode library for standards-compliant Level M generation with 4 modules quiet zone -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.1/qrcode.min.js"></script>
+  <script>
+    // Templates metadata configuration for the four document types
+    const TEMPLATES = {
+      dt_land: {
+        type: 'Land certificate',
+        title: 'Official Land Holding Certificate',
+        office: 'Addis Ababa City Administration Land Bureau',
+        holder: 'Abebe Bikila',
+        fanId: '1024-5892-3401-7685',
+        docId: '550e8400-e29b-41d4-a716-446655440001',
+        issuer: 'ET-AA-LAND-04',
+        issued: '2026-10-01',
+        expires: '2031-10-01',
+        jwsPayload: 'eyJhbGciOiJFUzI1NiIsImtpZCI6Indhc2UtYWEtMjAyNi0wMSJ9.eyJkb2NfaWQiOiI1NTBlODQwMC1lMjliLTQxZDQtYTcxNi00NDY2NTU0NDAwMDEiLCJ0eXBlIjoiTGFuZCBjZXJ0aWZpY2F0ZSIsImhvbGRlcl9uYW1lIjoiQWJlYmUgQmlraWxhIiwiaG9sZGVyX2lkIjoiMTAyNDU4OTIzNDAxNzY4NSIsImlzc3VlZF9hdCI6IjIwMjYtMTAtMDFUMDk6MDA6MDBaIiwiZXhwaXJlc19hdCI6IjIwMzEtMTAtMDFUMTc6MDA6MDBaIiwiaXNzdWVyX2NvZGUiOiJFVExBTkQwNCJ9.G_m129hZ59-4kH'
+      },
+      dt_coop: {
+        type: 'Cooperative credential',
+        title: 'Agricultural Cooperative Credential',
+        office: 'Oromia Regional Cooperative Promotion Agency',
+        holder: 'Chala Dejene',
+        fanId: '2048-1194-8203-9941',
+        docId: '770a1122-c31a-42d4-b912-112233440002',
+        issuer: 'ET-OR-COOP-02',
+        issued: '2026-10-05',
+        expires: '2029-10-05',
+        jwsPayload: 'eyJhbGciOiJFUzI1NiIsImtpZCI6Indhc2UtYWEtMjAyNi0wMSJ9.eyJkb2NfaWQiOiI3NzBhMTEyMi1jMzFhLTQyZDQtYjkxMi0xMTIyMzM0NDAwMDIiLCJ0eXBlIjoiQ29vcGVyYXRpdmUgY3JlZGVudGlhbCIsImhvbGRlcl9uYW1lIjoiQ2hhbGEgRGVqZW5lIiwiaG9sZGVyX2lkIjoiMjA0ODExOTQ4MjAzOTk0MSIsImlzc3VlZF9hdCI6IjIwMjYtMTAtMDVUMDk6MDA6MDBaIiwiZXhwaXJlc19hdCI6IjIwMjktMTAtMDVUMTc6MDA6MDBaIiwiaXNzdWVyX2NvZGUiOiJFVExBTkQwNCJ9.G_m129hZ59-4kH'
+      },
+      dt_birth: {
+        type: 'Birth record',
+        title: 'Vital Events Official Birth Record',
+        office: 'Federal Vital Events Registration Agency (Immigration & Vital)',
+        holder: 'Almaz Kebede',
+        fanId: '3092-4410-6721-5582',
+        docId: '881b2233-d42b-43e5-c823-223344550003',
+        issuer: 'ET-FDRE-VERA-01',
+        issued: '2026-10-10',
+        expires: '2036-10-10',
+        jwsPayload: 'eyJhbGciOiJFUzI1NiIsImtpZCI6Indhc2UtYWEtMjAyNi0wMSJ9.eyJkb2NfaWQiOiI4ODFiMjIzMy1kNDJiLTQzZTUtYzgyMy0yMjMzNDQ1NTAwMDMiLCJ0eXBlIjoiQmlydGggcmVjb3JkIiwiaG9sZGVyX25hbWUiOiJBbG1heiBLZWJlZGUiLCJob2xkZXJfaWQiOiIzMDkyNDQxMDY3MjE1NTgyIiwiaXNzdWVkX2F0IjoiMjAyNi0xMC0xMFQwOTowMDowMFoiLCJleHBpcmVzX2F0IjoiMjAzNi0xMC0xMFQxNzowMDowMFoiLCJpc3N1ZXJfY29kZSI6IkVUTEFORDA0In0.G_m129hZ59-4kH'
+      },
+      dt_permit: {
+        type: 'Local permit',
+        title: 'Sub-City Trade & Construction Permit',
+        office: 'Kirkos Sub-City Administration Trade Office',
+        holder: 'Dawit Yohannes',
+        fanId: '4109-8823-1490-3329',
+        docId: '992c3344-e53c-44f6-d734-334455660004',
+        issuer: 'ET-AA-KIRKOS-07',
+        issued: '2026-10-15',
+        expires: '2027-10-15',
+        jwsPayload: 'eyJhbGciOiJFUzI1NiIsImtpZCI6Indhc2UtYWEtMjAyNi0wMSJ9.eyJkb2NfaWQiOiI5OTJjMzM0NC1lNTNjLTQ0ZjYtZDczNC0zMzQ0NTU2NjAwMDQiLCJ0eXBlIjoiTG9jYWwgcGVybWl0IiwiaG9sZGVyX25hbWUiOiJEYXdpdCBZb2hhbm5lcyIsImhvbGRlcl9pZCI6IjQxMDk4ODIzMTQ5MDMzMjkiLCJpc3N1ZWRfYXQiOiIyMDI2LTEwLTE1VDA5OjAwOjAwWiIsImV4cGlyZXNfYXQiOiIyMDI3LTEwLTE1VDE3OjAwOjAwWiIsImlzc3Vlcl9jb2RlIjoiRVRMQU5EMDQifQ.G_m129hZ59-4kH'
+      }
+    };
+
+    function renderSpecimen(docKey) {
+      const doc = TEMPLATES[docKey] || TEMPLATES.dt_land;
+
+      document.getElementById('specimen-office').textContent = doc.office;
+      document.getElementById('doc-heading').textContent = doc.title;
+      document.getElementById('holder-name-val').textContent = doc.holder;
+      document.getElementById('holder-fan-val').textContent = doc.fanId;
+      document.getElementById('doc-id-val').textContent = doc.docId;
+      document.getElementById('issuer-code-val').textContent = doc.issuer;
+      document.getElementById('issue-date-val').textContent = doc.issued;
+      document.getElementById('expiry-date-val').textContent = doc.expires;
+
+      // Render Level M QR Code with at least 4 modules quiet zone
+      const canvas = document.getElementById('qr-canvas');
+      if (window.QRCode && window.QRCode.toCanvas) {
+        window.QRCode.toCanvas(canvas, doc.jwsPayload, {
+          errorCorrectionLevel: 'M',
+          margin: 4,
+          width: 240,
+          color: { dark: '#1E2B30', light: '#FFFFFF' }
+        }, function(err) {
+          if (err) console.error('QR rendering error:', err);
+        });
+      }
+    }
+
+    const selectEl = document.getElementById('doc-type-select');
+    selectEl.addEventListener('change', function(e) {
+      renderSpecimen(e.target.value);
+    });
+
+    // Check if QRCode library is loaded; if not, retry shortly
+    function init() {
+      if (window.QRCode) {
+        renderSpecimen(selectEl.value);
+      } else {
+        setTimeout(init, 100);
+      }
+    }
+    init();
+  </script>
+</body>
+</html>
