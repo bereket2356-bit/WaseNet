@@ -1,8 +1,10 @@
 {
   "name": "wasenet",
   "version": "1.0.0",
+  "type": "module",
   "scripts": {
-    "build": "npm --prefix frontend run build"
+    "build": "npm --prefix frontend run build",
+    "test:qr": "node tests/test-qr-types.js"
   },
   "dependencies": {
     "@neon/config": "^1.9.3",
