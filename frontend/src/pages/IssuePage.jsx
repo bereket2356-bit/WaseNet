@@ -25,14 +25,56 @@ const DOC_TYPES = {
   dt_permit: 'Local permit'
 };
 
+const formatFan = (val) => {
+  const digits = String(val || '').replace(/\D/g, '').slice(0, 16);
+  const parts = digits.match(/.{1,4}/g);
+  return {
+    digits,
+    formatted: parts ? parts.join('-') : digits
+  };
+};
+
+function processPhotoFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const minDim = Math.min(img.width, img.height);
+        const sx = (img.width - minDim) / 2;
+        const sy = (img.height - minDim) / 2;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = 400;
+        canvas.height = 400;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, 400, 400);
+
+        // SRS: Process in browser, export as JPEG at ~80% quality
+        const jpegData = canvas.toDataURL('image/jpeg', 0.8);
+        resolve(jpegData);
+      };
+      img.onerror = () => reject(new Error('Image decode error'));
+      img.src = reader.result;
+    };
+    reader.onerror = () => reject(new Error('File read error'));
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function IssuePage({ navigate }) {
   const [user, setUser] = useState(getCurrentUser());
   const [authMode, setAuthMode] = useState('choose'); // 'choose' | 'register' | 'signin'
   const [regError, setRegError] = useState('');
   const [loginError, setLoginError] = useState('');
   const [dateError, setDateError] = useState('');
+  const [nationalIdError, setNationalIdError] = useState('');
+  const [holderPhoto, setHolderPhoto] = useState(null);
+  const [photoError, setPhotoError] = useState('');
+  const [photoAnnouncement, setPhotoAnnouncement] = useState('');
   const [isSigning, setIsSigning] = useState(false);
   const [issued, setIssued] = useState(null);
+  const photoInputRef = useRef(null);
 
   const checkOffline = () => {
     return Boolean(window.__wasenet_simulated_offline || !navigator.onLine);
@@ -159,6 +201,53 @@ export default function IssuePage({ navigate }) {
     }
   };
 
+  const handleNationalIdChange = (e) => {
+    const raw = e.target.value;
+    const { digits, formatted } = formatFan(raw);
+    setDocForm(prev => ({ ...prev, holderId: digits, holderIdDisplay: formatted }));
+    if (nationalIdError) setNationalIdError('');
+  };
+
+  const handlePhotoChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setPhotoError('');
+    setPhotoAnnouncement('');
+
+    // Accept JPG, PNG, or WebP only. Reject other types and files over 2 MB
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    const ext = (file.name || '').split('.').pop()?.toLowerCase();
+    const isAllowedExt = ['jpg', 'jpeg', 'png', 'webp'].includes(ext);
+    const isAllowedMime = allowedTypes.includes(file.type) || isAllowedExt;
+    const MAX_SIZE = 2 * 1024 * 1024;
+
+    if (!isAllowedMime || file.size > MAX_SIZE) {
+      const msg = 'Choose a JPG, PNG, or WebP image under 2 MB.';
+      setPhotoError(msg);
+      setPhotoAnnouncement(msg);
+      e.target.value = '';
+      return;
+    }
+
+    try {
+      const dataUrl = await processPhotoFile(file);
+      setHolderPhoto(dataUrl);
+      setPhotoAnnouncement(`Photo chosen: ${file.name}`);
+    } catch (err) {
+      const msg = 'Choose a JPG, PNG, or WebP image under 2 MB.';
+      setPhotoError(msg);
+      setPhotoAnnouncement(msg);
+    }
+    e.target.value = '';
+  };
+
+  const handleRemovePhoto = () => {
+    setHolderPhoto(null);
+    setPhotoAnnouncement('Photo removed.');
+    if (photoInputRef.current) photoInputRef.current.value = '';
+  };
+
   const handleRegChange = (e) => {
     const { name, value } = e.target;
     setRegForm(prev => ({ ...prev, [name]: value }));
@@ -257,8 +346,18 @@ export default function IssuePage({ navigate }) {
   const handleIssueSubmit = async (e) => {
     e.preventDefault();
     setDateError('');
+    setNationalIdError('');
 
-    const missing = ['holder', 'holderId', 'issued', 'expires', 'issuer'].find(
+    // 1. National ID validation: must contain exactly 16 digits
+    const cleanId = String(docForm.holderId || '').replace(/\D/g, '');
+    if (cleanId.length !== 16) {
+      setNationalIdError('Enter all 16 digits of the national ID.');
+      const el = document.querySelector('[name="holderId"]');
+      if (el) el.focus();
+      return;
+    }
+
+    const missing = ['holder', 'issued', 'expires', 'issuer'].find(
       k => !String(docForm[k] || '').trim()
     );
     if (missing) {
@@ -278,11 +377,12 @@ export default function IssuePage({ navigate }) {
 
     const docTypeLabel = DOC_TYPES[docForm.docType] || docForm.docType;
 
+    // SRS 4.1 Data minimization: Photo is NOT included in signed JWS payload
     const payload = {
       doc_id: docForm.docId,
       type: docTypeLabel,
       holder_name: docForm.holder,
-      holder_id: docForm.holderId,
+      holder_id: cleanId,
       issued_at: new Date(docForm.issued + 'T09:00:00Z').toISOString(),
       expires_at: new Date(docForm.expires + 'T17:00:00Z').toISOString(),
       issuer_code: user?.issuerCode || 'ET-AA-LAND-04'
@@ -305,11 +405,13 @@ export default function IssuePage({ navigate }) {
         signedResult = await fallback.signDocument(payload, 'wase-aa-2026-01');
       }
 
+      // Store photo separately, linked to the Document ID
       const item = {
         id: docForm.docId,
         type: docForm.docType,
         holder: docForm.holder,
-        holderId: docForm.holderId,
+        holderId: cleanId,
+        photo: holderPhoto,
         issued: docForm.issued,
         expires: docForm.expires,
         issuer: docForm.issuer,
@@ -324,10 +426,12 @@ export default function IssuePage({ navigate }) {
       };
 
       if (isCurrentlyOffline) {
+        // Keep photo with queued document in IndexedDB for sync
         await queueStore.addPending({
           doc_id: item.id,
           type: item.type,
           holder_name: item.holder,
+          photo: holderPhoto,
           payload,
           jws: item.jws,
           createdAt: new Date().toISOString()
@@ -400,12 +504,12 @@ export default function IssuePage({ navigate }) {
     if (authMode === 'choose') {
       return (
         <div className="auth-stage">
-          <section className="card narrow">
+          <section className="card narrow auth-card">
             <h2>Admin access</h2>
-            <p className="muted" style={{ marginTop: '10px' }}>
+            <p className="muted" style={{ marginTop: '16px' }}>
               Create an account to request access, or sign in if you already have one.
             </p>
-            <div className="stack" style={{ marginTop: '22px' }}>
+            <div className="stack" style={{ marginTop: '24px' }}>
               <button className="btn block" type="button" onClick={() => setAuthMode('register')}>
                 Create an account
               </button>
@@ -421,20 +525,20 @@ export default function IssuePage({ navigate }) {
     if (authMode === 'register') {
       return (
         <div className="auth-stage">
-          <section className="card narrow">
+          <section className="card narrow auth-card">
             <button
               className="text-btn"
               type="button"
               onClick={() => { setAuthMode('choose'); setRegError(''); }}
-              style={{ marginBottom: '12px' }}
+              style={{ marginBottom: '16px' }}
             >
               Back
             </button>
             <h2>Create an account</h2>
-            <p className="muted" style={{ marginTop: '8px', fontSize: '15px' }}>
+            <p className="muted" style={{ marginTop: '16px', fontSize: '15px' }}>
               Your account gives you access to issuing and administration. Passwords must be at least 8 characters.
             </p>
-            <form id="f-register" onSubmit={handleRegisterSubmit} style={{ marginTop: '20px' }} noValidate>
+            <form id="f-register" onSubmit={handleRegisterSubmit} style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }} noValidate>
               <label className="field">
                 <span>Full name</span>
                 <input name="name" value={regForm.name} onChange={handleRegChange} autoComplete="name" required />
@@ -463,7 +567,7 @@ export default function IssuePage({ navigate }) {
                 <input name="p2" type="password" value={regForm.p2} onChange={handleRegChange} autoComplete="new-password" required />
               </label>
               <p id="e-reg" className="err" hidden={!regError}>{regError}</p>
-              <p style={{ marginTop: '22px' }}>
+              <p style={{ marginTop: '24px' }}>
                 <button className="btn block" type="submit">Create account</button>
               </p>
             </form>
@@ -475,17 +579,17 @@ export default function IssuePage({ navigate }) {
     // signin mode
     return (
       <div className="auth-stage">
-        <section className="card narrow">
+        <section className="card narrow auth-card">
           <button
             className="text-btn"
             type="button"
             onClick={() => { setAuthMode('choose'); setLoginError(''); }}
-            style={{ marginBottom: '12px' }}
+            style={{ marginBottom: '16px' }}
           >
             Back
           </button>
           <h2>Sign in to continue</h2>
-          <form id="f-login" onSubmit={handleLoginSubmit} style={{ marginTop: '20px' }} noValidate>
+          <form id="f-login" onSubmit={handleLoginSubmit} style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }} noValidate>
             <label className="field">
               <span>Username</span>
               <input name="u" value={loginForm.u} onChange={handleLoginChange} autoComplete="username" required />
@@ -495,7 +599,7 @@ export default function IssuePage({ navigate }) {
               <input name="p" type="password" value={loginForm.p} onChange={handleLoginChange} autoComplete="current-password" required />
             </label>
             {loginError && <p id="e-login" className="err">{loginError}</p>}
-            <p style={{ marginTop: '22px' }}>
+            <p style={{ marginTop: '24px' }}>
               <button className="btn block" type="submit">Sign in</button>
             </p>
           </form>
@@ -517,11 +621,35 @@ export default function IssuePage({ navigate }) {
 
   // 2. Signed in: show document issuance, pending & sync, and revocation
   return (
-    <div className="verify-wrap" style={{ maxWidth: '680px' }}>
+    <div className="verify-wrap" style={{ maxWidth: '680px', margin: '0 auto' }}>
       {issued ? (
-        <section className="card narrow" style={{ maxWidth: '560px', margin: '0 auto' }}>
+        <section className="card narrow issue-card" style={{ maxWidth: '560px', margin: '0 auto' }}>
           <h2>{isOffline ? 'Saved. Waiting to sync.' : 'Created and synced'}</h2>
-          <dl className="rows" style={{ marginTop: '20px' }}>
+
+          {/* Holder Photo Display (4x4cm frame) */}
+          {issued.photo && (
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '16px' }}>
+              <div
+                className="photo-frame"
+                style={{
+                  width: '4cm',
+                  height: '4cm',
+                  borderRadius: '8px',
+                  overflow: 'hidden',
+                  border: '1px solid var(--line)',
+                  backgroundColor: 'var(--stage)'
+                }}
+              >
+                <img
+                  src={issued.photo}
+                  alt={`Photo of ${issued.holder}`}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              </div>
+            </div>
+          )}
+
+          <dl className="rows" style={{ marginTop: '16px' }}>
             <div>
               <dt>Document type</dt>
               <dd>{DOC_TYPES[issued.type] || issued.type}</dd>
@@ -529,6 +657,10 @@ export default function IssuePage({ navigate }) {
             <div>
               <dt>Holder name</dt>
               <dd>{issued.holder}</dd>
+            </div>
+            <div>
+              <dt>Holder national ID (FAN)</dt>
+              <dd>{formatFan(issued.holderId).formatted}</dd>
             </div>
             <div>
               <dt>Document ID</dt>
@@ -558,15 +690,15 @@ export default function IssuePage({ navigate }) {
       ) : (
         <>
           <h1>Issue a document</h1>
-          <form id="f-issue" className="card" style={{ marginTop: '24px' }} noValidate onSubmit={handleIssueSubmit}>
+          <form id="f-issue" className="card issue-card" style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }} noValidate onSubmit={handleIssueSubmit}>
             <label className="field">
               <span>Document ID</span>
-              <span className="grid2" style={{ gridTemplateColumns: '1fr auto', alignItems: 'center' }}>
+              <div className="doc-id-row">
                 <input name="docId" value={docForm.docId} readOnly />
                 <button className="btn outline sm" type="button" onClick={regenDocId}>
                   Regenerate
                 </button>
-              </span>
+              </div>
             </label>
             <label className="field">
               <span>Document type</span>
@@ -579,12 +711,93 @@ export default function IssuePage({ navigate }) {
             </label>
             <label className="field">
               <span>Holder full name</span>
-              <input name="holder" value={docForm.holder} onChange={handleDocChange} autoComplete="off" required />
+              <input id="holder-name" name="holder" value={docForm.holder} onChange={handleDocChange} autoComplete="off" required />
             </label>
             <label className="field">
-              <span>Holder national or Kebele ID</span>
-              <input name="holderId" value={docForm.holderId} onChange={handleDocChange} autoComplete="off" required />
+              <span>Holder national ID (FAN)</span>
+              <input
+                id="holder-fan"
+                name="holderId"
+                value={docForm.holderIdDisplay !== undefined ? docForm.holderIdDisplay : formatFan(docForm.holderId).formatted}
+                onChange={handleNationalIdChange}
+                placeholder="xxxx-xxxx-xxxx-xxxx"
+                inputMode="numeric"
+                autoComplete="off"
+                required
+              />
             </label>
+            {nationalIdError && (
+              <p id="fan-err" className="err" style={{ marginTop: '-8px', marginBottom: '0' }}>
+                {nationalIdError}
+              </p>
+            )}
+
+            {/* Holder Photo Upload (SRS 4.1 Data Minimization) */}
+            <div className="holder-photo-section">
+              <input
+                id="holder-photo-input"
+                ref={photoInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                style={{ display: 'none' }}
+                aria-label="Upload holder photo"
+                onChange={handlePhotoChange}
+              />
+              <div id="photo-status" aria-live="polite" className="sr-only">
+                {photoAnnouncement}
+              </div>
+              {!holderPhoto ? (
+                <div>
+                  <button
+                    id="choose-photo-btn"
+                    type="button"
+                    className="btn outline"
+                    style={{ minHeight: '48px', height: '48px', width: 'auto', padding: '0 20px' }}
+                    onClick={() => photoInputRef.current && photoInputRef.current.click()}
+                  >
+                    Choose a photo
+                  </button>
+                </div>
+              ) : (
+                <div className="photo-preview-wrap" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div
+                    className="photo-frame photo-preview-box"
+                    style={{
+                      width: '4cm',
+                      height: '4cm',
+                      borderRadius: '8px',
+                      overflow: 'hidden',
+                      border: '1px solid var(--line)',
+                      backgroundColor: 'var(--stage)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    <img
+                      src={holderPhoto}
+                      alt="Holder portrait preview"
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                  </div>
+                  <button
+                    id="remove-photo-btn"
+                    type="button"
+                    className="text-btn danger"
+                    style={{ alignSelf: 'flex-start', padding: '4px 0', fontSize: '14px', cursor: 'pointer' }}
+                    onClick={handleRemovePhoto}
+                  >
+                    Remove photo
+                  </button>
+                </div>
+              )}
+              {photoError && (
+                <p id="photo-err" className="err" style={{ marginTop: '8px', fontSize: '14px' }}>
+                  {photoError}
+                </p>
+              )}
+            </div>
+
             <div className="grid2">
               <label className="field">
                 <span>Issue date</span>
@@ -600,7 +813,7 @@ export default function IssuePage({ navigate }) {
               <span>Issuer code</span>
               <input name="issuer" value={docForm.issuer} onChange={handleDocChange} autoComplete="off" required />
             </label>
-            <p style={{ marginTop: '22px' }}>
+            <p style={{ marginTop: '24px' }}>
               <button className="btn block" type="submit" disabled={isSigning}>
                 {isSigning ? '...' : 'Sign and create document'}
               </button>
