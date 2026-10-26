@@ -763,7 +763,8 @@ export default function IssuePage({ navigate }) {
                     throw new Error('Could not fetch server record');
                   }
                   const serverDoc = await res.json();
-                  await fillPrintSheet(serverDoc);
+                  window.__currentIssuedPhoto = issued.photo || '';
+                  await fillPrintSheet({ ...serverDoc, photo: issued.photo || serverDoc.photo });
                   window.print();
                 } catch (e) {
                   setPrintError('The certificate could not be loaded. Try again.');
