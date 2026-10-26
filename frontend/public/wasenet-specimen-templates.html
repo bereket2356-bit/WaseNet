@@ -195,6 +195,34 @@
       color: #fff;
     }
 
+    /* Training demonstration chips */
+    .chips {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .chip {
+      min-height: 36px;
+      padding: 0 14px;
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      color: var(--ink);
+      text-decoration: none;
+      font-size: 13.5px;
+      font-weight: 700;
+      background: var(--surface);
+      user-select: none;
+      cursor: pointer;
+    }
+    .chip.active, .chip[aria-current="true"] {
+      background: var(--ink);
+      color: var(--on-ink);
+      border-color: var(--ink);
+    }
+
     /* =========================================================================
        SPECIMEN SHEET: Matches Print Mockup Design Exactly
        ========================================================================= */
@@ -563,6 +591,20 @@
           <span id="photo-desc" class="demo-inline-note">Uploads chosen photo onto the 4 × 4 cm placeholder.</span>
         </div>
       </div>
+
+      <div class="controls-row" style="margin-top:4px;">
+        <div class="control-item">
+          <label>Demonstration result states (training only):</label>
+          <div class="chips" id="training-chips">
+            <span class="chip active" onclick="selectTrainingChip(this)">Valid</span>
+            <span class="chip" onclick="selectTrainingChip(this)">Tampered</span>
+            <span class="chip" onclick="selectTrainingChip(this)">Revoked</span>
+            <span class="chip" onclick="selectTrainingChip(this)">Expired</span>
+            <span class="chip" onclick="selectTrainingChip(this)">Could not read</span>
+          </div>
+          <span class="demo-inline-note">Demonstration chips moved to specimen templates page for training.</span>
+        </div>
+      </div>
     </section>
 
     <!-- Document Certificate Sheet -->
@@ -697,6 +739,11 @@
         };
         reader.readAsDataURL(file);
       });
+    }
+
+    function selectTrainingChip(el) {
+      document.querySelectorAll('#training-chips .chip').forEach(c => c.classList.remove('active'));
+      el.classList.add('active');
     }
 
     // Initialize with selected template
