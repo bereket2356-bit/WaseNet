@@ -6,12 +6,11 @@ An offline-first platform for issuing and verifying public-sector documents in E
 * **Role:** Solo Developer, covering the PWA verifier, issuance web app, FastAPI backend, and PostgreSQL/SQLite database design.
 
 ### 📚 Project Resources
-* **Software Requirements Specification:** [View SRS](https://link-to-your-srs)
-* **Project Documentation:** [View Project Report](https://link-to-your-report)
+* **Project Documentation:** [View Project Report](https://drive.google.com/file/d/1fx7frr4wQs8AqHd75xm4nnxpvbptYtWN/view?usp=drive_link)
 * **Video Demonstration:** [Watch Demo](https://link-to-your-demo)
 
 ### 🌐 Live Site
-* **Demo:** [https://your-app-url.vercel.app](https://wase-net.vercel.app)
+* **Demo:** [https://wase-net.vercel.app](https://wase-net.vercel.app)
 
 ---
 
