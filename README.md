@@ -1,9 +1,9 @@
 # WaseNet - Hybrid Document Authentication System
 An offline-first platform for issuing and verifying public-sector documents in Ethiopia. Authorized offices issue digitally signed credentials as QR codes, and anyone can verify them in the field, even with no network connection. The verifier is a Progressive Web App (PWA), and the issuing side is a secure admin backend that manages signing keys and revocations.
 
-### 👨💻 Developer
-**[Bereket Teshome]** ([CTC-1367-26])
-* **Role:** [Solo Developer], covering the PWA verifier, issuance web app, FastAPI backend, and PostgreSQL/SQLite database design.
+### 💻 Developer
+**Bereket Teshome** (CTC-1367-26)
+* **Role:** Solo Developer, covering the PWA verifier, issuance web app, FastAPI backend, and PostgreSQL/SQLite database design.
 
 ### 📚 Project Resources
 * **Software Requirements Specification:** [View SRS](https://link-to-your-srs)
