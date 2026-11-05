@@ -50,4 +50,4 @@ An offline-first platform for issuing and verifying public-sector documents in E
 * The verifier targets Android and Chromium-based browsers. There is no native iOS app.
 
 ## 📄 License
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+This project is licensed under the MIT License. See [LICENSE](License.md) for details.
