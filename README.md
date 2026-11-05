@@ -7,7 +7,7 @@ An offline-first platform for issuing and verifying public-sector documents in E
 
 ### 📚 Project Resources
 * **Project Documentation:** [View Project Report](https://drive.google.com/file/d/1fx7frr4wQs8AqHd75xm4nnxpvbptYtWN/view?usp=drive_link)
-* **Video Demonstration:** [Watch Demo](https://link-to-your-demo)
+* **Video Demonstration:** [Watch Demo](https://docs.google.com/videos/d/1h9E9ynSqfXa2xm2ysWKXszdA7iHtUjrTFYo1ugWuNAY/play?usp=sharing)
 
 ### 🌐 Live Site
 * **Demo:** [https://wase-net.vercel.app](https://wase-net.vercel.app)
